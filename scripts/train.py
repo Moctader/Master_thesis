@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment', default='./experiment_config.yml')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--num_threads', type=int, default=16)
-    parser.add_argument('--bs', type=int, default=6)
+    parser.add_argument('--bs', type=int, default=4)
     parser.add_argument('--n_epochs', type=int, default=20)
     args = parser.parse_args()
     with open(args.experiment, 'r') as f:
