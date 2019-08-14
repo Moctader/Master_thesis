@@ -26,10 +26,18 @@ def normalize_channel_wise(tensor: torch.Tensor, mean: torch.Tensor, std: torch.
     """
     if len(tensor.size()) != 3:
         raise ValueError
-
+    # Original version
+    """
     for channel in range(tensor.size(0)):
         tensor[channel, :, :] -= mean[channel]
         tensor[channel, :, :] /= std[channel]
+
+    return tensor
+    """
+    # Modified shape
+    for channel in range(tensor.size(2)):
+        tensor[:, :, channel] -= mean[channel]
+        tensor[:, :, channel] /= std[channel]
 
     return tensor
 
@@ -81,6 +89,10 @@ def train_test_transforms(mean=None, std=None):
 
     val_trf = [
         wrap_solt,
+        slc.Stream([
+            slt.PadTransform(pad_to=1024),
+            slt.CropTransform(crop_mode='r', crop_size=(512, 1024))
+        ]),
         unwrap_solt,
         ApplyTransform(numpy2tens, idx=(0, 1, 2))
     ]
@@ -111,9 +123,11 @@ def estimate_mean_std(metadata, parse_item_cb, num_threads=8, bs=16):
             if mean is None:
                 mean = torch.zeros(batch['data'].size(1))
                 std = torch.zeros(batch['data'].size(1))
-            for channel in range(batch['data'].size(1)):
-                mean[channel] += batch['data'][:, channel, :, :].mean().item()
-                std[channel] += batch['data'][:, channel, :, :].std().item()
+            # for channel in range(batch['data'].size(1)):
+            #     mean[channel] += batch['data'][:, channel, :, :].mean().item()
+            #     std[channel] += batch['data'][:, channel, :, :].std().item()
+            mean += batch['data'].mean().item()
+            std += batch['data'].std().item()
 
     mean /= len(mean_std_loader)
     std /= len(mean_std_loader)

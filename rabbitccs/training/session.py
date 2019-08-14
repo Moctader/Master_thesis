@@ -31,3 +31,8 @@ def create_data_provider(args):
 def parse_multi_label(x, cls, threshold=0.5):
     out = x[:, cls, :, :].unsqueeze(1).gt(threshold)
     return torch.cat((1 - out, out), dim=1).squeeze()
+
+
+def parse_binary_label(x, threshold=0.5):
+    out = x.gt(threshold)
+    return torch.cat((1 - out, out), dim=1).squeeze()
