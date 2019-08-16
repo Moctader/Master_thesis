@@ -18,6 +18,8 @@ from collagen.savers import ModelSaver
 # TODO: Check that this works
 # TODO: parse function needs to be changed to binary segmentation!!!
 from rabbitccs.training.session import create_data_provider, init_seed, parse_multi_label, parse_binary_label
+from rabbitccs.data.splits import build_splits
+
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
@@ -47,12 +49,18 @@ if __name__ == "__main__":
     device = auto_detect_device()
 
     # Tensorboard
-    writer = SummaryWriter(comment='tb', log_dir=logs_dir)
+    writer = SummaryWriter(comment='RabbitCCS', log_dir=logs_dir)
+
+    loss = CombinedLoss([BCEWithLogitsLoss2d(),
+                         SoftJaccardLoss(use_log=config['training']['log_jaccard'])]).to(device)
+
+    # Split training folds
+    # splitter = FoldSplit(train_ds, n_folds=5, target_col="target")
+    # splitter = build_splits(args.data_location, n_folds=5)
 
     data_provider = create_data_provider(args)
     model = EncoderDecoder(**config['model']).to(device)
-    loss = CombinedLoss([BCEWithLogitsLoss2d(),
-                         SoftJaccardLoss(use_log=config['training']['log_jaccard'])]).to(device)
+
 
     optimizer = optim.Adam(model.parameters(),
                            lr=config['training']['lr'],

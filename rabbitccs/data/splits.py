@@ -39,13 +39,13 @@ def build_meta_from_files(base_path):
     return train, test
 
 
-def build_splits(data_dir):
+def build_splits(data_dir, n_folds=5):
     # TODO: this function (Done)
     train, test = build_meta_from_files(data_dir)
 
     train['subj_id'] = train.fname.apply(lambda x: x.stem.split('_')[0] + '_' + x.stem.split('_')[1], 0)  # Group_ID
     # TODO: group K-Fold by rabbit ID (Done)
-    gkf = model_selection.GroupKFold(n_splits=12)  # Splits equal to n_rabbits
+    gkf = model_selection.GroupKFold(n_splits=n_folds)
     train_idx, val_idx = next(gkf.split(train, groups=train.subj_id))
 
     return {'train': train.iloc[train_idx],  # Swapped train and val idx
@@ -66,7 +66,7 @@ def parse_item_cb(root, entry, transform, data_key, target_key):
     img, mask = transform((img, mask))
     # img = torch.cat([img, img, img], 0)
     # mask = torch.cat(mask.unsqueeze(0))
-    img = img.permute(2, 0, 1) / 255. # img.shape[0] is the color channel after permute
+    img = img.permute(2, 0, 1) / 255.  # img.shape[0] is the color channel after permute
 
     # TODO: Chek that the images are in the format 3xHxW (Done)
     # TODO: img must be scaled (Done)
