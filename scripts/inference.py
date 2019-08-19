@@ -35,11 +35,18 @@ if __name__ == "__main__":
     with open(args.experiment, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    # Load model
+    # Load models
+    models = glob(str(args.snapshots_root) + '/fold_*')
+    models.sort()
     device = auto_detect_device()
-    model = EncoderDecoder(**config['model']).to(device)
-    model.load_state_dict(torch.load(os.path.join(args.snapshots_root, 'model_0016_20190815_120643_eval.loss_0.093.pth')))
-    model.eval()
+
+    # List the models
+    model_list = []
+    for fold in range(len(models)):
+        model = EncoderDecoder(**config['model']).to(device)
+        model.load_state_dict(torch.load(models[fold]))
+        model.eval()
+        model_list.append(model)
 
     # Find image files
     files = glob(str(args.dataset_root) + '/*.png')
@@ -83,22 +90,31 @@ if __name__ == "__main__":
                     else:
                         im_pad[:x, :, :] = img_full[:, i * input_y:(i + 1) * input_y, :]
                 img = im_pad[:, :, :]
-
+            # Convert image to tensor
             img = numpy2tens(img / 255.).permute(2, 0, 1).to('cuda')
-            mask = torch.sigmoid(model(img.unsqueeze(0))).mul(255).to('cpu').detach().numpy().astype('uint8').squeeze()
-            mask = (mask >= 255 // 2).astype('uint8') * 255
+
+            # Loop evaluating inference on every fold
+            masks = []
+            for fold in range(len(models)):
+                # Inference
+                mask = torch.sigmoid(model_list[fold](img.unsqueeze(0))).to('cpu').detach().numpy().astype('float32').squeeze()
+                masks.append(mask)
+
+            # Average of predictions
+            mask_mean = np.mean(masks, 0)
+            mask_final = (mask_mean >= 0.5).astype('uint8') * 255
 
             # Add prediction to large mask
             if x >= input_x:
                 if (blocks_y == i + 1) & bool(residual_y):  # end of the large image
-                    mask_full[:input_x, - (y % input_y):] = mask[:, - (y % input_y):]
+                    mask_full[:input_x, - (y % input_y):] = mask_final[:, - (y % input_y):]
                 else:
-                    mask_full[:input_x, i * input_y:(i + 1) * input_y] = mask
+                    mask_full[:input_x, i * input_y:(i + 1) * input_y] = mask_final
             else:
                 if (blocks_y == i + 1) & bool(residual_y):  # end of the large image
-                    mask_full[:, - (y % input_y):] = mask[:input_x, - (y % input_y):]
+                    mask_full[:, - (y % input_y):] = mask_final[:input_x, - (y % input_y):]
                 else:
-                    mask_full[:, i * input_y:(i + 1) * input_y] = mask[:input_x, :]
+                    mask_full[:, i * input_y:(i + 1) * input_y] = mask_final[:input_x, :]
 
 
 

@@ -46,11 +46,18 @@ def build_splits(data_dir, n_folds=5):
     train['subj_id'] = train.fname.apply(lambda x: x.stem.split('_')[0] + '_' + x.stem.split('_')[1], 0)  # Group_ID
     # TODO: group K-Fold by rabbit ID (Done)
     gkf = model_selection.GroupKFold(n_splits=n_folds)
-    train_idx, val_idx = next(gkf.split(train, groups=train.subj_id))
 
-    return {'train': train.iloc[train_idx],  # Swapped train and val idx
-            'val': train.iloc[val_idx],
-            'test': test}
+    # Create splits for all folds
+    splits_list = []
+    iterator = gkf.split(train, groups=train.subj_id)
+    for i in range(n_folds):
+        train_idx, val_idx = next(iterator)
+        metadata = {'train': train.iloc[train_idx],  # Swapped train and val idx
+                    'val': train.iloc[val_idx],
+                    'test': test}
+        splits_list.append(metadata)
+
+    return splits_list
 
 
 def parse_item_cb(root, entry, transform, data_key, target_key):

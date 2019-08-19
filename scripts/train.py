@@ -1,3 +1,4 @@
+import numpy as np
 from torch import optim
 import argparse
 import yaml
@@ -9,7 +10,7 @@ from tensorboardX import SummaryWriter
 from collagen.modelzoo.segmentation import EncoderDecoder
 from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
 
-from collagen.callbacks.metrics import RunningAverageMeter, JaccardDiceMeter
+from collagen.callbacks.metrics import RunningAverageMeter, JaccardDiceMeter, AccuracyMeter
 from collagen.callbacks.logging import MeterLogging
 from collagen.core.utils import auto_detect_device
 from collagen.strategies import Strategy
@@ -49,54 +50,67 @@ if __name__ == "__main__":
     device = auto_detect_device()
 
     # Tensorboard
-    writer = SummaryWriter(comment='RabbitCCS', log_dir=logs_dir)
+    summary_writer = SummaryWriter(comment='RabbitCCS', log_dir=logs_dir)
 
-    loss = CombinedLoss([BCEWithLogitsLoss2d(),
-                         SoftJaccardLoss(use_log=config['training']['log_jaccard'])]).to(device)
+    loss_criterion = CombinedLoss([BCEWithLogitsLoss2d(),
+                                   SoftJaccardLoss(use_log=config['training']['log_jaccard'])]).to(device)
 
     # Split training folds
-    # splitter = FoldSplit(train_ds, n_folds=5, target_col="target")
-    # splitter = build_splits(args.data_location, n_folds=5)
+    splits_list = build_splits(args.data_location, n_folds=5)
 
-    data_provider = create_data_provider(args)
-    model = EncoderDecoder(**config['model']).to(device)
+    # Initialize results
+    kfold_train_losses = []
+    kfold_val_losses = []
+    kfold_val_accuracies = []
 
+    # Training for separate folds
+    for fold in range(len(splits_list)):
+        data_provider = create_data_provider(args, metadata=splits_list[fold])
+        model = EncoderDecoder(**config['model']).to(device)
 
-    optimizer = optim.Adam(model.parameters(),
-                           lr=config['training']['lr'],
-                           weight_decay=config['training']['wd'])
+        optimizer = optim.Adam(model.parameters(),
+                               lr=config['training']['lr'],
+                               weight_decay=config['training']['wd'])
 
-    train_cbs = (RunningAverageMeter(prefix="train", name="loss"))
-    """
-    val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
-               # JaccardDiceMeter(prefix="eval/lungs", name='jaccard',              
-               JaccardDiceMeter(prefix="eval", name='jaccard',
-                                parse_output=partial(parse_binary_label, threshold=0.5),
-                                # parse_output=partial(parse_multi_label, cls=0, threshold=0.5),
-                                parse_target=lambda x: x[:, 0].squeeze(),
-                                class_names=['bg', 'cci']),
-               ModelSaver(metric_names='eval/loss',
-                          save_dir=str(snapshots_dir),
-                          conditions='min', model=model),
-               MeterLogging(writer=writer, comment='metrics'))
-    """
-    val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
-               ModelSaver(metric_names='eval/loss',
-                          save_dir=str(snapshots_dir),
-                          conditions='min', model=model),
-                          MeterLogging(writer=writer, comment='metrics'),
-               MeterLogging(writer=writer, comment='metrics', log_dir=logs_dir))
+        train_cbs = (RunningAverageMeter(prefix="train", name="loss"),
+                     #AccuracyMeter(prefix="train", name="acc")
+                     )
+        """
+        val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
+                   # JaccardDiceMeter(prefix="eval/lungs", name='jaccard',              
+                   JaccardDiceMeter(prefix="eval", name='jaccard',
+                                    parse_output=partial(parse_binary_label, threshold=0.5),
+                                    # parse_output=partial(parse_multi_label, cls=0, threshold=0.5),
+                                    parse_target=lambda x: x[:, 0].squeeze(),
+                                    class_names=['bg', 'cci']),
+                   ModelSaver(metric_names='eval/loss',
+                              save_dir=str(snapshots_dir),
+                              conditions='min', model=model),
+                   MeterLogging(writer=writer, comment='metrics'))
+        """
+        val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
+                   #AccuracyMeter(prefix="eval", name="acc"),
+                   ModelSaver(metric_names='eval/loss',
+                              prefix=f'fold_{fold}',
+                              save_dir=str(snapshots_dir),
+                              conditions='min', model=model),
+                   MeterLogging(writer=summary_writer, comment='metrics', log_dir=logs_dir))
 
-    strategy = Strategy(data_provider=data_provider,
-                        train_loader_names=tuple(config['data_sampling']['train']['data_provider'].keys()),
-                        val_loader_names=tuple(config['data_sampling']['eval']['data_provider'].keys()),
-                        data_sampling_config=config['data_sampling'],
-                        loss=loss,
-                        model=model,
-                        n_epochs=args.n_epochs,
-                        optimizer=optimizer,
-                        train_callbacks=train_cbs,
-                        val_callbacks=val_cbs,
-                        device=device)
+        strategy = Strategy(data_provider=data_provider,
+                            train_loader_names=tuple(config['data_sampling']['train']['data_provider'].keys()),
+                            val_loader_names=tuple(config['data_sampling']['eval']['data_provider'].keys()),
+                            data_sampling_config=config['data_sampling'],
+                            loss=loss_criterion,
+                            model=model,
+                            n_epochs=args.n_epochs,
+                            optimizer=optimizer,
+                            train_callbacks=train_cbs,
+                            val_callbacks=val_cbs,
+                            device=device)
 
-    strategy.run()
+        strategy.run()
+        kfold_train_losses.append(train_cbs[0].current())
+        kfold_val_losses.append(val_cbs[0].current())
+
+    print("k-fold training loss: {}".format(np.asarray(kfold_train_losses).mean()))
+    print("k-fold validation loss: {}".format(np.asarray(kfold_val_losses).mean()))

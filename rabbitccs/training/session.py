@@ -14,8 +14,9 @@ def init_seed(args):
     np.random.seed(args.seed)
 
 
-def create_data_provider(args):
-    metadata = build_splits(args.data_location)
+def create_data_provider(args, metadata=None):
+    if metadata is None:
+        metadata = build_splits(args.data_location)
     mean, std = estimate_mean_std(metadata, parse_item_cb, args.num_threads, args.bs)
     item_loaders = dict()
     for stage in ['train', 'val', 'test']:
