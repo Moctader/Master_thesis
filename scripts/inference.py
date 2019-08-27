@@ -25,10 +25,9 @@ if __name__ == "__main__":
     parser.add_argument('--bs', type=int, default=32)
     parser.add_argument('--experiment', default='./experiment_config.yml')
     parser.add_argument('--n_threads', type=int, default=12)
-    parser.add_argument('--snapshots_root', default='../../../workdir/snapshots/')
+    parser.add_argument('--snapshots_root', default='../../../workdir/snapshots/512x512/')
     parser.add_argument('--snapshot', default='')
-    parser.add_argument('--input_x', type=int, default=1024)
-    parser.add_argument('--input_y', type=int, default=512)
+    parser.add_argument('--crop_size', type=tuple, default=(512, 1024))
     args = parser.parse_args()
 
     # Load configuration file
@@ -53,42 +52,40 @@ if __name__ == "__main__":
     args.save_dir.mkdir(exist_ok=True)
 
     # Loop for all images
-    input_x = args.input_x
-    input_y = args.input_y
+    crop = args.crop_size
     for file in tqdm(files, desc='Running inference'):
         img_full = cv2.imread(file)
         x, y, ch = img_full.shape
         mask_full = np.zeros((x, y))
 
         # Check for amount of blocks
-        # residual_x = int((x % 1024 > 0))
-        residual_y = int((y % input_y > 0))
-        blocks_y = img_full.shape[1] // input_y + residual_y
-
+        residuals = (int(x % crop[0] > 0), int(y % crop[1] > 0))
+        blocks_x = img_full.shape[0] // crop[0] + residuals[0]
+        blocks_y = img_full.shape[1] // crop[1] + residuals[1]
 
         # Loop evaluating through large image
         for i in range(blocks_y):
             # Select part of the large image for network
-            if img_full.shape[0] >= input_x:
+            if img_full.shape[0] >= crop[0]:
                 if blocks_y == 1:  # x >= 1024, y < 512
-                    im_pad = np.zeros((input_x, input_y, 3))
-                    im_pad[:, :y, :] = img_full[:input_x, :, :]
+                    im_pad = np.zeros((crop[0], crop[1], 3))
+                    im_pad[:, :y, :] = img_full[:crop[0], :, :]
                     img = im_pad[:, :, :]
                 else:  # x >= 1024, y >= 512
-                    if (blocks_y == i + 1) & bool(residual_y):  # end of the large image
-                        img = img_full[:input_x, - input_y:, :]
+                    if (blocks_y == i + 1) & bool(residuals[1]):  # end of the large image
+                        img = img_full[:crop[0], - crop[1]:, :]
                     else:
-                        img = img_full[:input_x, i * input_y:(i + 1) * input_y, :]
+                        img = img_full[:crop[0], i * crop[1]:(i + 1) * crop[1], :]
             else:
-                im_pad = np.zeros((input_x, input_y, 3))
+                im_pad = np.zeros((crop[0], crop[1], 3))
                 if blocks_y == 1:  # x < 1024, y < 512
                     im_pad[:x, :y, :] = img_full[:, :, :]
 
                 else:  # x < 1024, y >= 512
-                    if (blocks_y == i + 1) & bool(residual_y):  # end of the large image
-                        im_pad[:x, :, :] = img_full[:, - input_y:, :]
+                    if (blocks_y == i + 1) & bool(residuals[1]):  # end of the large image
+                        im_pad[:x, :, :] = img_full[:, - crop[1]:, :]
                     else:
-                        im_pad[:x, :, :] = img_full[:, i * input_y:(i + 1) * input_y, :]
+                        im_pad[:x, :, :] = img_full[:, i * crop[1]:(i + 1) * crop[1], :]
                 img = im_pad[:, :, :]
             # Convert image to tensor
             img = numpy2tens(img / 255.).permute(2, 0, 1).to('cuda')
@@ -105,17 +102,16 @@ if __name__ == "__main__":
             mask_final = (mask_mean >= 0.5).astype('uint8') * 255
 
             # Add prediction to large mask
-            if x >= input_x:
-                if (blocks_y == i + 1) & bool(residual_y):  # end of the large image
-                    mask_full[:input_x, - (y % input_y):] = mask_final[:, - (y % input_y):]
+            if x >= crop[0]:
+                if (blocks_y == i + 1) & bool(residuals[1]):  # end of the large image
+                    mask_full[:crop[0], - (y % crop[1]):] = mask_final[:, - (y % crop[1]):]
                 else:
-                    mask_full[:input_x, i * input_y:(i + 1) * input_y] = mask_final
+                    mask_full[:crop[0], i * crop[1]:(i + 1) * crop[1]] = mask_final
             else:
-                if (blocks_y == i + 1) & bool(residual_y):  # end of the large image
-                    mask_full[:, - (y % input_y):] = mask_final[:input_x, - (y % input_y):]
+                if (blocks_y == i + 1) & bool(residuals[1]):  # end of the large image
+                    mask_full[:, - (y % crop[1]):] = mask_final[:crop[0], - (y % crop[1]):]
                 else:
-                    mask_full[:, i * input_y:(i + 1) * input_y] = mask_final[:input_x, :]
+                    mask_full[:, i * crop[1]:(i + 1) * crop[1]] = mask_final[:crop[0], :]
 
-
-
+        # Save predicted full mask
         cv2.imwrite(str(args.save_dir) + '/' + file.split('/')[-1], mask_full)

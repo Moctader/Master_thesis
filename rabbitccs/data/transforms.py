@@ -75,14 +75,21 @@ def unwrap_solt(dc):
     return dc.data
 
 
-def train_test_transforms(mean=None, std=None):
+def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
+    prob = conf['training']['transform_probability']
+    transforms = [
+        slt.RandomFlip(p=prob),
+        slt.RandomRotate(rotation_range=(conf['training']['rotation_min'], conf['training']['rotation_max']), p=prob),
+        slt.RandomScale(range_x=(conf['training']['scale_min'], conf['training']['scale_max']),
+                        range_y=(conf['training']['scale_min'], conf['training']['scale_max']), same=False, p=prob),
+        slt.PadTransform(pad_to=crop_size[1]),
+        slt.CropTransform(crop_mode='r', crop_size=crop_size),
+        slt.ImageGammaCorrection(gamma_range=(conf['training']['gamma_min'], conf['training']['gamma_max']), p=prob)
+    ]
+
     train_trf = [
         wrap_solt,
-        slc.Stream([
-            slt.PadTransform(pad_to=1024),
-            slt.CropTransform(crop_mode='r', crop_size=(512, 1024)),
-            slt.ImageGammaCorrection(gamma_range=(0.5, 2), p=0.5)
-        ]),
+        slc.Stream(transforms),
         unwrap_solt,
         ApplyTransform(numpy2tens, (0, 1, 2))
     ]
@@ -90,8 +97,8 @@ def train_test_transforms(mean=None, std=None):
     val_trf = [
         wrap_solt,
         slc.Stream([
-            slt.PadTransform(pad_to=1024),
-            slt.CropTransform(crop_mode='r', crop_size=(512, 1024))
+            slt.PadTransform(pad_to=crop_size[1]),
+            slt.CropTransform(crop_mode='r', crop_size=crop_size)
         ]),
         unwrap_solt,
         ApplyTransform(numpy2tens, idx=(0, 1, 2))
@@ -109,9 +116,9 @@ def train_test_transforms(mean=None, std=None):
     return {'train': train_trf, 'val': val_trf, 'test': val_trf}
 
 
-def estimate_mean_std(metadata, parse_item_cb, num_threads=8, bs=16):
-    mean_std_loader = ItemLoader(meta_data=metadata['train'],
-                                 transform=train_test_transforms()['train'],
+def estimate_mean_std(config, metadata, parse_item_cb, num_threads=8, bs=16):
+    mean_std_loader = ItemLoader(meta_data=metadata,
+                                 transform=train_test_transforms(config)['train'],
                                  parse_item_cb=parse_item_cb,
                                  batch_size=bs, num_workers=num_threads,
                                  shuffle=False)

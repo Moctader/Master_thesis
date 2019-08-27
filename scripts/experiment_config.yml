@@ -1,7 +1,22 @@
 training:
+  # General
   wd: 0.0001
   lr: 0.0001
-  log_jaccard: false
+  log_jaccard: true
+  n_folds: 5
+  crop_size: [512, 1024]
+  # Transforms
+  gamma_min: 0.5
+  gamma_max: 2
+  scale_min: 0.8
+  scale_max: 1.2
+  rotation_min: -30
+  rotation_max: 30
+  transform_probability: 0.5
+  # LR reduction
+  patience: 5
+  factor: 0.1
+  eps: 1e-7
 model:
   decoder_normalization: IN
   n_outputs: 1
