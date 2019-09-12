@@ -24,6 +24,8 @@ def build_meta_from_files(base_path, phase='train'):
     #masks = list(map(lambda x: pathlib.Path(x).with_suffix('.png'), masks))
     images = list(map(lambda x: pathlib.Path(x.name), images_loc.glob('**/*[0-9].[pb][nm][gp]')))
     masks = list(map(lambda x: pathlib.Path(x.name), masks_loc.glob('**/*[0-9].[pb][nm][gp]')))
+    images.sort()
+    masks.sort()
 
     assert len(res), len(masks)
 
@@ -31,6 +33,7 @@ def build_meta_from_files(base_path, phase='train'):
 
     # Making dataframe
     if str(base_path)[-3:] == 'µCT':
+
         [d_frame['fname'].append((images_loc / str(img_name).rsplit('_', 1)[0] / img_name)) for img_name in images]
         [d_frame['mask_fname'].append(masks_loc / str(img_name).rsplit('_', 1)[0] / img_name) for img_name in masks]
     else:
@@ -45,16 +48,20 @@ def build_meta_from_files(base_path, phase='train'):
 def build_splits(data_dir, args, config, parser, snapshots_dir, snapshot_name):
     # Metadata
     metadata = build_meta_from_files(data_dir)
-    metadata['subj_id'] = metadata.fname.apply(lambda x: x.stem[:-9], 0)  # Group_ID
+    # Group_ID
+    if config['training']['uCT']:
+        metadata['subj_id'] = metadata.fname.apply(lambda x: x.stem.rsplit('_', 2)[0], 0)
+    else:
+        metadata['subj_id'] = metadata.fname.apply(lambda x: x.stem.rsplit('_', 3)[0], 0)
 
     # Mean and std
     crop = config['training']['crop_size']
     mean_std_path = snapshots_dir / f"mean_std_{crop[0]}x{crop[1]}.pth"
-    if mean_std_path.is_file():
+    if mean_std_path.is_file() and not config['training']['calc_meanstd']:  # Load
         print('==> Loading mean and std from cache')
         tmp = torch.load(mean_std_path)
         mean, std = tmp['mean'], tmp['std']
-    else:
+    else:  # Calculate
         print('==> Estimating mean and std')
         mean, std = estimate_mean_std(config, metadata, parser, args.num_threads, args.bs)
         torch.save({'mean': mean, 'std': std}, mean_std_path)

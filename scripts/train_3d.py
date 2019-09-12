@@ -25,7 +25,7 @@ if __name__ == "__main__":
     loss_criterion = init_loss(config, device=device)
 
     # Split training folds
-    splits_metadata = build_splits(args.data_location, args, config, parse_color_im, snapshots_dir, snapshot_name)
+    splits_metadata = build_splits(args.data_location, args, config, parse_grayscale, snapshots_dir, snapshot_name)
     mean, std = splits_metadata['mean'], splits_metadata['std']
 
     # Save transforms list
@@ -40,10 +40,9 @@ if __name__ == "__main__":
     for fold in range(config['training']['n_folds']):
         print(f'\nTraining fold {fold}')
 
-        data_provider = create_data_provider(args, config, parse_color_im, metadata=splits_metadata[f'fold_{fold}'],
+        data_provider = create_data_provider(args, config, parse_grayscale, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
         model = EncoderDecoder(**config['model']).to(device)
-        model = nn
 
         optimizer = optim.Adam(model.parameters(),
                                lr=config['training']['lr'],

@@ -8,6 +8,7 @@ import torch
 import dill
 import json
 import cv2
+import matplotlib.pyplot as plt
 import solt.data as sld
 from tensorboardX import SummaryWriter
 # from torch.utils.tensorboard import SummaryWriter
@@ -41,7 +42,7 @@ def init_experiment(experiment='2D'):
         # µCT parameters
         args.data_location = args.data_location / 'µCT'
         args.experiment = './experiment_config_uCT.yml'
-        args.bs = 7
+        args.bs = 8
         with open(args.experiment, 'r') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
     else:
@@ -123,18 +124,7 @@ def init_loss(config, device='cuda'):
         raise Exception('No compatible loss selected in experiment_config.yml! Set training->loss accordingly.')
 
 
-def create_data_provider(args, config, parser, metadata=None, mean=None, std=None):
-    # Generate mean and std if not given
-    mean_std_path = args.snapshots_dir / f"mean_std_{config['crop_size']}.pth"
-    if mean_std_path.is_file() and not config['training']['calc_meanstd']:
-        print('==> Loading mean and std from cache')
-        tmp = torch.load(mean_std_path)
-        mean, std = tmp['mean'], tmp['std']
-    else:
-        print('==> Estimating mean and std')
-        mean, std = estimate_mean_std(config, metadata['train'], parser, args.num_threads, args.bs)
-        torch.save({'mean': mean, 'std': std}, mean_std_path)
-
+def create_data_provider(args, config, parser, metadata, mean, std):
     # Compile ItemLoaders
     item_loaders = dict()
     for stage in ['train', 'val']:
@@ -192,12 +182,22 @@ def parse_color_im(root, entry, transform, data_key, target_key):
 
 def parse_grayscale(root, entry, transform, data_key, target_key):
     # Image and mask generation
-    img = cv2.imread(str(entry.fname), cv2.IMREAD_GRAYSCALE) / 255.
+    img = cv2.imread(str(entry.fname))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     mask = cv2.imread(str(entry.mask_fname), 0) / 255.
 
     if img.shape[0] != mask.shape[0]:
         img = cv2.resize(img, (mask.shape[1], mask.shape[0]))
+    elif img.shape[1] != mask.shape[1]:
+        mask = mask[:, :img.shape[1]]
+
     img, mask = transform((img, mask))
+    img = img.permute(2, 0, 1) / 255.  # img.shape[0] is the color channel after permute
+
+    # Debugging
+    #plt.imshow(np.asarray(img).transpose((1, 2, 0)))
+    #plt.imshow(np.asarray(mask).squeeze(), alpha=0.3)
+    #plt.show()
 
     # Images are in the format 3xHxW
     # and scaled to 0-1 range
