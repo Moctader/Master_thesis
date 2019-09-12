@@ -1,25 +1,31 @@
 import pathlib
 import argparse
 import yaml
-import torch
 import numpy as np
 import time
 import socket
+import torch
+import dill
+import json
+import cv2
+import solt.data as sld
 from tensorboardX import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from functools import partial
 
 from collagen.data import DataProvider, ItemLoader
 from collagen.core.utils import auto_detect_device
-from collagen.callbacks.meters import RunningAverageMeter, JaccardDiceMeter, AccuracyMeter, ItemWiseBinaryJaccardDiceMeter
+from collagen.callbacks.meters import RunningAverageMeter, ItemWiseBinaryJaccardDiceMeter
 from collagen.callbacks.logging import ScalarMeterLogger
 from collagen.callbacks import ModelSaver, ImageMaskVisualizer, SimpleLRScheduler
+from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
 
-from rabbitccs.data.splits import build_splits, parse_item_cb
+from rabbitccs.data.splits import build_splits
 from rabbitccs.data.transforms import train_test_transforms, estimate_mean_std
 
 
-def init_experiment():
+def init_experiment(experiment='2D'):
     # Input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_location', type=pathlib.Path, default='../../../Data')
@@ -27,12 +33,20 @@ def init_experiment():
     parser.add_argument('--experiment', default='./experiment_config.yml')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--num_threads', type=int, default=16)
-    parser.add_argument('--bs', type=int, default=4)
-    parser.add_argument('--n_epochs', type=int, default=20)
-    parser.add_argument('--crop_size', type=tuple, default=(512, 1024))
+    parser.add_argument('--bs', type=int, default=3)
+    parser.add_argument('--n_epochs', type=int, default=100)
     args = parser.parse_args()
-    with open(args.experiment, 'r') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    if experiment == '3D':
+        # µCT parameters
+        args.data_location = args.data_location / 'µCT'
+        args.experiment = './experiment_config_uCT.yml'
+        args.bs = 7
+        with open(args.experiment, 'r') as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+    else:
+        with open(args.experiment, 'r') as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Seeding
     torch.manual_seed(args.seed)
@@ -41,35 +55,42 @@ def init_experiment():
 
     # Initialize working directories
     snapshots_dir = pathlib.Path(args.workdir) / 'snapshots'
-    logs_dir = pathlib.Path(args.workdir) / 'logs'
     snapshots_dir.mkdir(exist_ok=True)
-    logs_dir.mkdir(exist_ok=True)
     device = auto_detect_device()
-
     snapshot_name = time.strftime(f'{socket.gethostname()}_%Y_%m_%d_%H_%M_%S')
     (snapshots_dir / snapshot_name).mkdir(exist_ok=True, parents=True)
 
-    return args, config, device, snapshots_dir, snapshot_name, logs_dir
+    # Save the experiment parameters
+    with open(snapshots_dir / snapshot_name / 'config.yml', 'w') as f:
+        yaml.dump(config, f, Dumper=yaml.Dumper, default_flow_style=False)
+    # args
+    with open(snapshots_dir / snapshot_name / 'args.dill', 'wb') as f:
+        dill.dump(args, f)
+
+    return args, config, device, snapshots_dir, snapshot_name
 
 
 def init_callbacks(fold_id, config, snapshots_dir, snapshot_name, model, optimizer, data_provider, mean, std):
     # Snapshot directory
     current_snapshot_dir = snapshots_dir / snapshot_name
     crop = config['training']['crop_size']
-    log_dir = current_snapshot_dir / f"{crop[0]}x{crop[1]}_fold_{fold_id}_logs"
+    log_dir = current_snapshot_dir / f"fold_{fold_id}_log"
     device = next(model.parameters()).device
+
     # Tensorboard
-    writer = SummaryWriter(comment='RabbitCCS', log_dir=log_dir)
+    writer = SummaryWriter(comment='RabbitCCS', log_dir=log_dir, flush_secs=15, max_queue=1)
     prefix = f"{crop[0]}x{crop[1]}_fold_{fold_id}"
+
+    # Set threshold
     threshold = 0.3 if config['training']['log_jaccard'] else 0.5
+
     # Callbacks
     train_cbs = (RunningAverageMeter(prefix="train", name="loss"),
                  ScalarMeterLogger(writer, comment='training', log_dir=str(log_dir))
                  )
 
     val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
-               ImageMaskVisualizer(writer, data_provider, log_dir=str(log_dir), comment='visualize',
-                                   mean=mean, std=std),
+               ImageMaskVisualizer(writer, log_dir=str(log_dir), comment='visualize', mean=mean, std=std),
                ModelSaver(metric_names='eval/loss',
                           prefix=prefix,
                           save_dir=str(current_snapshot_dir),
@@ -82,23 +103,45 @@ def init_callbacks(fold_id, config, snapshots_dir, snapshot_name, model, optimiz
                                               parse_target=lambda x: x.squeeze().to(device)),
                # Reduce LR on plateau
                SimpleLRScheduler('eval/loss', ReduceLROnPlateau(optimizer,
-                                                                patience=config['training']['patience'],
-                                                                factor=config['training']['factor'],
-                                                                eps=config['training']['eps'])),
+                                                                patience=int(config['training']['patience']),
+                                                                factor=float(config['training']['factor']),
+                                                                eps=float(config['training']['eps']))),
                ScalarMeterLogger(writer=writer, comment='validation', log_dir=log_dir))
 
     return train_cbs, val_cbs
 
 
-def create_data_provider(args, config, metadata=None, mean=None, std=None):
-    if (metadata or mean or std) is None:
-        metadata = build_splits(args.data_location)
-        mean, std = estimate_mean_std(config, metadata['train'], parse_item_cb, args.num_threads, args.bs)
+def init_loss(config, device='cuda'):
+    if config['training']['loss'] == 'bce':
+        return BCEWithLogitsLoss2d().to(device)
+    elif config['training']['loss'] == 'jaccard':
+        return SoftJaccardLoss(use_log=config['training']['log_jaccard']).to(device)
+    elif config['training']['loss'] == 'combined':
+        return CombinedLoss([BCEWithLogitsLoss2d(),
+                            SoftJaccardLoss(use_log=config['training']['log_jaccard'])]).to(device)
+    else:
+        raise Exception('No compatible loss selected in experiment_config.yml! Set training->loss accordingly.')
+
+
+def create_data_provider(args, config, parser, metadata=None, mean=None, std=None):
+    # Generate mean and std if not given
+    mean_std_path = args.snapshots_dir / f"mean_std_{config['crop_size']}.pth"
+    if mean_std_path.is_file() and not config['training']['calc_meanstd']:
+        print('==> Loading mean and std from cache')
+        tmp = torch.load(mean_std_path)
+        mean, std = tmp['mean'], tmp['std']
+    else:
+        print('==> Estimating mean and std')
+        mean, std = estimate_mean_std(config, metadata['train'], parser, args.num_threads, args.bs)
+        torch.save({'mean': mean, 'std': std}, mean_std_path)
+
+    # Compile ItemLoaders
     item_loaders = dict()
-    for stage in ['train', 'val', 'test']:
+    for stage in ['train', 'val']:
         item_loaders[f'bfpn_{stage}'] = ItemLoader(meta_data=metadata[stage],
-                                                   transform=train_test_transforms(config, mean, std, crop_size=args.crop_size)[stage],
-                                                   parse_item_cb=parse_item_cb,
+                                                   transform=train_test_transforms(config, mean, std,
+                                                   crop_size=tuple(config['training']['crop_size']))[stage],
+                                                   parse_item_cb=parser,
                                                    batch_size=args.bs, num_workers=args.num_threads,
                                                    shuffle=True if stage == "train" else False)
 
@@ -114,3 +157,72 @@ def parse_binary_label(x, threshold=0.5):
     out = x.gt(threshold)
     #return torch.cat((~out, out), dim=1).squeeze().float()
     return out.squeeze().float()
+
+
+def parse_item_test(root, entry, transform, data_key, target_key):
+    img = cv2.imread(str(entry.fname), 0)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    dc = sld.DataContainer((img, ), 'I',  transform_settings={0: {'interpolation': 'bilinear'}})
+    img = transform(dc)[0]
+    #img = torch.cat([img, img, img], 0) / 255.
+    img = img.permute(2, 0, 1) / 255.
+
+    return {data_key: img}
+
+
+def parse_color_im(root, entry, transform, data_key, target_key):
+    # Image and mask generation
+    img = cv2.imread(str(entry.fname))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    mask = cv2.imread(str(entry.mask_fname), 0) / 255.
+
+    if img.shape[0] != mask.shape[0]:
+        img = cv2.resize(img, (mask.shape[1], mask.shape[0]))
+    elif img.shape[1] != mask.shape[1]:
+        mask = mask[:, :img.shape[1]]
+
+    img, mask = transform((img, mask))
+    img = img.permute(2, 0, 1) / 255.  # img.shape[0] is the color channel after permute
+
+    # Images are in the format 3xHxW
+    # and scaled to 0-1 range
+    return {data_key: img, target_key: mask}
+
+
+def parse_grayscale(root, entry, transform, data_key, target_key):
+    # Image and mask generation
+    img = cv2.imread(str(entry.fname), cv2.IMREAD_GRAYSCALE) / 255.
+    mask = cv2.imread(str(entry.mask_fname), 0) / 255.
+
+    if img.shape[0] != mask.shape[0]:
+        img = cv2.resize(img, (mask.shape[1], mask.shape[0]))
+    img, mask = transform((img, mask))
+
+    # Images are in the format 3xHxW
+    # and scaled to 0-1 range
+    return {data_key: img, target_key: mask}
+
+
+def save_config(path, config, args):
+    """
+    Alternate way to save model parameters.
+    """
+    with open(path + '/experiment_config.txt', 'w') as f:
+        f.write(f'\nArguments file:\n')
+        f.write(f'Seed: {args.seed}\n')
+        f.write(f'Batch size: {args.bs}\n')
+        f.write(f'N_epochs: {args.n_epochs}\n')
+
+        f.write('Configuration file:\n\n')
+        for key, val in config.items():
+            f.write(f'{key}\n')
+            for key2 in config[key].items():
+                f.write(f'\t{key2}\n')
+
+
+def save_transforms(path, config, args, mean, std):
+    transforms = train_test_transforms(config, mean, std, crop_size=tuple(config['training']['crop_size']))
+    # Save the experiment parameters
+    with open(path / 'transforms.json', 'w') as f:
+        f.writelines(json.dumps(transforms['train_list'][1].serialize(), indent=4))

@@ -18,15 +18,12 @@ cv2.setNumThreads(0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--dataset_root', default='../../../Data/images/')
-    parser.add_argument('--dataset_root', type=pathlib.Path, default='/media/dios/dios2/HistologySegmentation/Images/')
-    parser.add_argument('--save_dir', type=pathlib.Path, default='/media/dios/dios2/HistologySegmentation/Predictions/')
+    parser.add_argument('--dataset_root', type=pathlib.Path, default='../../../Data/images_test/')
+    parser.add_argument('--save_dir', type=pathlib.Path, default='../../../Data/predictions_test/')
     parser.add_argument('--tta', type=bool, default=False)
-    parser.add_argument('--bs', type=int, default=32)
     parser.add_argument('--experiment', default='./experiment_config.yml')
-    parser.add_argument('--n_threads', type=int, default=12)
-    parser.add_argument('--snapshots_root', default='../../../workdir/snapshots/512x512/')
-    parser.add_argument('--snapshot', default='')
+    parser.add_argument('--snapshots_root', default='../../../workdir/snapshots/')
+    parser.add_argument('--snapshot', default='dios-erc-gpu_2019_08_27_17_59_41/')
     parser.add_argument('--crop_size', type=tuple, default=(512, 1024))
     args = parser.parse_args()
 
@@ -35,7 +32,7 @@ if __name__ == "__main__":
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Load models
-    models = glob(str(args.snapshots_root) + '/fold_*')
+    models = glob(str(args.snapshots_root) + str(args.snapshot) + '/*fold_*.pth')
     models.sort()
     device = auto_detect_device()
 
@@ -52,7 +49,7 @@ if __name__ == "__main__":
     args.save_dir.mkdir(exist_ok=True)
 
     # Loop for all images
-    crop = args.crop_size
+    crop = config['training']['crop_size']
     for file in tqdm(files, desc='Running inference'):
         img_full = cv2.imread(file)
         x, y, ch = img_full.shape

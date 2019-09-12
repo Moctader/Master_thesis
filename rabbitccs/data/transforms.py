@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from functools import partial
+from tqdm import tqdm
 
 import solt.transforms as slt
 import solt.data as sld
@@ -76,24 +77,74 @@ def unwrap_solt(dc):
 
 
 def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
-    prob = conf['training']['transform_probability']
-    transforms = [
-        slt.RandomFlip(p=prob),
-        slt.RandomRotate(rotation_range=(conf['training']['rotation_min'], conf['training']['rotation_max']), p=prob),
-        slt.RandomScale(range_x=(conf['training']['scale_min'], conf['training']['scale_max']),
-                        range_y=(conf['training']['scale_min'], conf['training']['scale_max']), same=False, p=prob),
-        slt.PadTransform(pad_to=crop_size[1]),
-        slt.CropTransform(crop_mode='r', crop_size=crop_size),
-        slt.ImageGammaCorrection(gamma_range=(conf['training']['gamma_min'], conf['training']['gamma_max']), p=prob)
-    ]
+    trf = conf['training']
+    prob = trf['transform_probability']
+    # Training transforms
+    if trf['uCT']:
+        train_transforms = [
+            # Projection
+            slt.RandomProjection(
+                slc.Stream([
+                    slt.RandomRotate(rotation_range=tuple(trf['rotation_range']), p=prob),
+                    slt.RandomScale(range_x=tuple(trf['scale_range']),
+                                    range_y=tuple(trf['scale_range']), same=False, p=prob),
+                ]),
+                v_range=tuple(trf['v_range'])),
+            # Spatial
+            slt.RandomFlip(p=prob),
+            slt.PadTransform(pad_to=crop_size[0]),
+            slt.PadTransform(pad_to=crop_size[1]),
+            slt.CropTransform(crop_mode='r', crop_size=crop_size),
+            # Intensity
+            slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
+            slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob),
+            slc.SelectiveStream([
+                slt.ImageSaltAndPepper(p=prob, gain_range=trf['gain_range_sp']),
+                slt.ImageAdditiveGaussianNoise(p=prob, gain_range=trf['gain_range_gn'])]),
+            slc.SelectiveStream([
+                slt.ImageBlur(p=prob, blur_type='g', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma'])),
+                slt.ImageBlur(p=prob, blur_type='m', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma']))
+            ])]
+    else:
+        train_transforms = [
+            # Projection
+            slt.RandomProjection(
+                slc.Stream([
+                    slt.RandomRotate(rotation_range=tuple(trf['rotation_range']), p=prob),
+                    slt.RandomScale(range_x=tuple(trf['scale_range']),
+                                    range_y=tuple(trf['scale_range']), same=False, p=prob),
+                    #slt.RandomShear(range_x=tuple(trf['shear_range']),
+                    #                range_y=tuple(trf['shear_range']), p=prob),
+                    #slt.RandomTranslate(range_x=trf['translation_range'], range_y=trf['translation_range'], p=prob)
+                ]),
+                v_range=tuple(trf['v_range'])),
+            # Spatial
+            slt.RandomFlip(p=prob),
+            slt.PadTransform(pad_to=crop_size[1]),
+            slt.CropTransform(crop_mode='r', crop_size=crop_size),
+            # Intensity
+
+            slt.ImageGammaCorrection(gamma_range=tuple(trf['gamma_range']), p=prob),
+            slt.ImageRandomHSV(h_range=tuple(trf['hsv_range']),
+                               s_range=tuple(trf['hsv_range']),
+                               v_range=tuple(trf['hsv_range']), p=prob),
+            slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
+            slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob),
+            slc.SelectiveStream([
+                slt.ImageSaltAndPepper(p=prob, gain_range=trf['gain_range_sp']),
+                slt.ImageAdditiveGaussianNoise(p=prob, gain_range=trf['gain_range_gn'])]),
+            slc.SelectiveStream([
+                slt.ImageBlur(p=prob, blur_type='g', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma'])),
+                slt.ImageBlur(p=prob, blur_type='m', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma']))
+            ])]
 
     train_trf = [
         wrap_solt,
-        slc.Stream(transforms),
+        slc.Stream(train_transforms),
         unwrap_solt,
         ApplyTransform(numpy2tens, (0, 1, 2))
     ]
-
+    # Validation transforms
     val_trf = [
         wrap_solt,
         slc.Stream([
@@ -103,17 +154,26 @@ def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
         unwrap_solt,
         ApplyTransform(numpy2tens, idx=(0, 1, 2))
     ]
+    # Test transforms
+    test_trf = [
+        unwrap_solt,
+        ApplyTransform(numpy2tens, idx=(0, 1, 2))
+    ]
 
+    # Use normalize_channel_wise if mean and std not calculated
     if mean is not None and std is not None:
         train_trf.append(ApplyTransform(partial(normalize_channel_wise, mean=mean, std=std)))
 
     if mean is not None and std is not None:
         val_trf.append(ApplyTransform(partial(normalize_channel_wise, mean=mean, std=std)))
 
-    train_trf = Compose(train_trf)
-    val_trf = Compose(val_trf)
+    # Compose transforms
+    train_trf_cmp = Compose(train_trf)
+    val_trf_cmp = Compose(val_trf)
+    test_trf_cmp = Compose(test_trf)
 
-    return {'train': train_trf, 'val': val_trf, 'test': val_trf}
+    return {'train': train_trf_cmp, 'val': val_trf_cmp, 'test': test_trf_cmp,
+            'train_list': train_trf, 'val_list': val_trf, 'test_list': test_trf}
 
 
 def estimate_mean_std(config, metadata, parse_item_cb, num_threads=8, bs=16):
@@ -125,7 +185,7 @@ def estimate_mean_std(config, metadata, parse_item_cb, num_threads=8, bs=16):
 
     mean = None
     std = None
-    for i in range(len(mean_std_loader)):
+    for i in tqdm(range(len(mean_std_loader)), desc='Calculating mean and standard deviation'):
         for batch in mean_std_loader.sample():
             if mean is None:
                 mean = torch.zeros(batch['data'].size(1))
