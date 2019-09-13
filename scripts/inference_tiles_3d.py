@@ -9,12 +9,12 @@ import argparse
 import dill
 import torch
 import yaml
-from time import sleep
+from time import sleep, time
 from tqdm import tqdm
 from glob import glob
 from collagen.modelzoo.segmentation import EncoderDecoder
 from collagen.core.utils import auto_detect_device
-from rabbitccs.data.transforms import numpy2tens
+from rabbitccs.data.utilities import load, save
 
 from pytorch_toolbelt.inference.tiles import ImageSlicer, CudaTileMerger
 from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image, to_numpy
@@ -23,15 +23,78 @@ cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
 
 
+def inference(img_full):
+    x, y, ch = img_full.shape
+    mask_full = np.zeros((x, y))
+
+    # Cut large image into overlapping tiles
+    tiler = ImageSlicer(img_full.shape, tile_size=(input_x, input_y),
+                        tile_step=(input_x // 2, input_y // 2), weight=args.weight)
+
+    # HCW -> CHW. Optionally, do normalization here
+    tiles = [tensor_from_rgb_image(tile) for tile in tiler.split(img_full)]
+
+    # Allocate a CUDA buffer for holding entire mask
+    merger = CudaTileMerger(tiler.target_shape, channels=1, weight=tiler.weight, device=device)
+
+    # Loop evaluating inference on every fold
+    masks = []
+    for fold in range(len(models)):
+
+        # Run predictions for tiles and accumulate them
+        for tiles_batch, coords_batch in DataLoader(list(zip(tiles, tiler.crops)), batch_size=args.bs, pin_memory=True):
+            # Move tile to GPU
+            tiles_batch = (tiles_batch.float() / 255.).to(device)
+            # Predict and move back to CPU
+            pred_batch = torch.sigmoid(model_list[fold](tiles_batch))  # .detach()
+
+            # Merge on GPU
+            merger.integrate_batch(pred_batch, coords_batch)
+
+            # Plot
+            if args.plot:
+                for i in range(args.bs):
+                    if args.bs != 1:
+                        plt.imshow(pred_batch.cpu().detach().numpy().astype('float32').squeeze()[i, :, :])
+                    else:
+                        plt.imshow(pred_batch.cpu().detach().numpy().astype('float32').squeeze())
+                    plt.show()
+
+        # Normalize accumulated mask and convert back to numpy
+        merged_mask = np.moveaxis(to_numpy(merger.merge()), 0, -1).astype('float32')
+        merged_mask = tiler.crop_to_orignal_size(merged_mask)
+        # Plot
+        if args.plot:
+            for i in range(args.bs):
+                if args.bs != 1:
+                    plt.imshow(merged_mask)
+                else:
+                    plt.imshow(merged_mask.squeeze())
+                plt.show()
+        masks.append(merged_mask)
+
+    # Average of predictions
+    mask_mean = np.mean(masks, 0)
+
+    # Free memory
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    return mask_mean.squeeze()
+
+
 if __name__ == "__main__":
+    start = time()
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images')
+    parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images_test')
     parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions/')
     parser.add_argument('--bs', type=int, default=8)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path, default='../../../workdir/snapshots/dios-erc-gpu_2019_09_12_14_34_22/')
+    parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.bmp')
     args = parser.parse_args()
 
     # Load snapshot configuration
@@ -63,74 +126,29 @@ if __name__ == "__main__":
     samples = os.listdir(args.dataset_root)
     for sample in samples:
         sleep(0.5); print(f'==> Processing sample: {sample}')
-        # Find image files
-        files = glob(str(args.dataset_root / sample / '*[0-9].[pb][nm][gp]'))
+
+        # Load image stacks
+        data_xz = load(str(args.dataset_root / sample), rgb=True)  # X-Z-Y-Ch
+        data_yz = np.transpose(data_xz, (2, 1, 0, 3))  # Y-Z-X-Ch
+        mask_xz = np.zeros(data_xz.shape)[:, :, :, 0]  # Remove channel dimension
+        mask_yz = np.zeros(data_yz.shape)[:, :, :, 0]
 
         threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3
 
         # Loop for image slices
         input_x = config['training']['crop_size'][0]
         input_y = config['training']['crop_size'][1]
-        for file in tqdm(files, desc='Running inference on slices'):
+        # 1st orientation
+        for slice in tqdm(range(data_xz.shape[2]), desc='Running inference, XZ'):
+            mask_xz[:, :, slice] = inference(data_xz[:, :, slice, :])
+        # 2nd orientation
+        for slice in tqdm(range(data_yz.shape[2]), desc='Running inference, YZ'):
+            mask_yz[:, :, slice] = inference(data_yz[:, :, slice, :])
 
-            img_full = cv2.imread(file)
-            x, y, ch = img_full.shape
-            mask_full = np.zeros((x, y))
+        # Average probability maps
+        mask_final = ((mask_xz + np.transpose(mask_yz, (2, 1, 0))) / 2) > threshold
 
-            # Cut large image into overlapping tiles
-            tiler = ImageSlicer(img_full.shape, tile_size=(input_x, input_y),
-                                tile_step=(input_x // 2, input_y // 2), weight=args.weight)
+        # Save predicted full mask
+        save(str(args.save_dir), sample, mask_final.astype('uint8') * 255, dtype=args.dtype)
 
-            # HCW -> CHW. Optionally, do normalization here
-            tiles = [tensor_from_rgb_image(tile) for tile in tiler.split(img_full)]
-
-            # Allocate a CUDA buffer for holding entire mask
-            merger = CudaTileMerger(tiler.target_shape, channels=1, weight=tiler.weight, device=device)
-
-            # Loop evaluating inference on every fold
-            masks = []
-            for fold in range(len(models)):
-
-                # Run predictions for tiles and accumulate them
-                for tiles_batch, coords_batch in DataLoader(list(zip(tiles, tiler.crops)), batch_size=args.bs, pin_memory=True):
-                    # Move tile to GPU
-                    tiles_batch = (tiles_batch.float() / 255.).to(device)
-                    # Predict and move back to CPU
-                    pred_batch = torch.sigmoid(model_list[fold](tiles_batch))  # .detach()
-
-                    # Merge on GPU
-                    merger.integrate_batch(pred_batch, coords_batch)
-
-                    # Plot
-                    if args.plot:
-                        for i in range(args.bs):
-                            if args.bs != 1:
-                                plt.imshow(pred_batch.cpu().detach().numpy().astype('float32').squeeze()[i, :, :])
-                            else:
-                                plt.imshow(pred_batch.cpu().detach().numpy().astype('float32').squeeze())
-                            plt.show()
-
-                # Normalize accumulated mask and convert back to numpy
-                merged_mask = np.moveaxis(to_numpy(merger.merge()), 0, -1).astype('float32')
-                merged_mask = tiler.crop_to_orignal_size(merged_mask)
-                # Plot
-                if args.plot:
-                    for i in range(args.bs):
-                        if args.bs != 1:
-                            plt.imshow(merged_mask)
-                        else:
-                            plt.imshow(merged_mask.squeeze())
-                        plt.show()
-                masks.append(merged_mask)
-
-            # Average of predictions
-            mask_mean = np.mean(masks, 0)
-            mask_final = (mask_mean >= threshold).astype('uint8') * 255
-
-            # Save predicted full mask
-            (args.save_dir / sample).mkdir(exist_ok=True)
-            cv2.imwrite(str(args.save_dir / sample / file.split('/')[-1][:-4]) + '.bmp', mask_final)
-            #  cv2.imwrite(str(args.save_dir / sample / file.split('/')[-1]), mask_final)
-            # Free memory
-            torch.cuda.empty_cache()
-            gc.collect()
+    print(f'Inference completed in {time() - start} seconds.')

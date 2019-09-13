@@ -43,7 +43,7 @@ def load_images(path, n_jobs=12, rgb=False):
         return files, data
 
 
-def load(path, axis=(1, 2, 0), n_jobs=12):
+def load(path, axis=(0, 1, 2), n_jobs=12, rgb=False):
     """
     Loads an image stack as numpy array.
 
@@ -71,8 +71,12 @@ def load(path, axis=(1, 2, 0), n_jobs=12):
             except ValueError:
                 continue
     files = newlist[:]  # replace list
-    # Load data and get bounding box
-    data = Parallel(n_jobs=n_jobs)(delayed(read_image_gray)(path, file) for file in tqdm(files, 'Loading'))
+    # Load images
+    if rgb:
+        data = Parallel(n_jobs=n_jobs)(delayed(read_image_rgb)(path, file) for file in tqdm(files, 'Loading'))
+    else:
+        data = Parallel(n_jobs=n_jobs)(delayed(read_image_gray)(path, file) for file in tqdm(files, 'Loading'))
+    # Transpose array
     if axis != (0, 1, 2):
         return np.transpose(np.array(data), axis)
 
@@ -96,7 +100,7 @@ def read_image_rgb(path, file):
     return image
 
 
-def save(path, file_name, data, n_jobs=12):
+def save(path, file_name, data, n_jobs=12, dtype='.png'):
     """
     Save a volumetric 3D dataset in given directory.
 
@@ -120,7 +124,7 @@ def save(path, file_name, data, n_jobs=12):
 
     # Parallel saving (nonparallel if n_jobs = 1)
     Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
-                            (path + '\\' + file_name + str(k).zfill(8) + '.png', data[:, :, k].astype(np.uint8))
+                            (path + '/' + file_name + str(k).zfill(8) + dtype, data[:, :, k].astype(np.uint8))
                             for k in tqdm(range(nfiles), 'Saving dataset'))
 
 
