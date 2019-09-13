@@ -45,7 +45,8 @@ if __name__ == "__main__":
     # Load models
     models = glob(str(args.snapshot) + '/*fold_*.pth')
     models.sort()
-    device = auto_detect_device()
+    #device = auto_detect_device()
+    device = 1  # Use the second GPU for inference
 
     # List the models
     model_list = []
@@ -78,7 +79,7 @@ if __name__ == "__main__":
         tiles = [tensor_from_rgb_image(tile) for tile in tiler.split(img_full)]
 
         # Allocate a CUDA buffer for holding entire mask
-        merger = CudaTileMerger(tiler.target_shape, channels=1, weight=tiler.weight)
+        merger = CudaTileMerger(tiler.target_shape, channels=1, weight=tiler.weight, device=device)
 
         # Loop evaluating inference on every fold
         masks = []
@@ -87,7 +88,7 @@ if __name__ == "__main__":
             # Run predictions for tiles and accumulate them
             for tiles_batch, coords_batch in DataLoader(list(zip(tiles, tiler.crops)), batch_size=args.bs, pin_memory=True):
                 # Move tile to GPU
-                tiles_batch = (tiles_batch.float() / 255.).cuda()
+                tiles_batch = (tiles_batch.float() / 255.).to(device)
                 # Predict and move back to CPU
                 pred_batch = torch.sigmoid(model_list[fold](tiles_batch)).detach()
 

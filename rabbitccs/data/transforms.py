@@ -94,7 +94,7 @@ def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
                 v_range=tuple(trf['v_range'])),
             # Spatial
             slt.RandomFlip(p=prob),
-            slt.PadTransform(pad_to=crop_size[1]),
+            slt.PadTransform(pad_to=crop_size),
             slt.CropTransform(crop_mode='r', crop_size=crop_size),
             # Intensity
 

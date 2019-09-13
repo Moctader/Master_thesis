@@ -33,6 +33,7 @@ def init_experiment(experiment='2D'):
     parser.add_argument('--workdir', type=pathlib.Path, default='../../../workdir/')
     parser.add_argument('--experiment', default='./experiment_config.yml')
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--model_unet', type=bool, default=False)
     parser.add_argument('--num_threads', type=int, default=16)
     parser.add_argument('--bs', type=int, default=3)
     parser.add_argument('--n_epochs', type=int, default=100)
@@ -42,7 +43,9 @@ def init_experiment(experiment='2D'):
         # µCT parameters
         args.data_location = args.data_location / 'µCT'
         args.experiment = './experiment_config_uCT.yml'
-        args.bs = 8
+        args.bs = 6
+        args.n_epochs = 20
+        #args.model_unet = True
         with open(args.experiment, 'r') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
     else:

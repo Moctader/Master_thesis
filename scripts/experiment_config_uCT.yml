@@ -5,7 +5,7 @@ training:
   n_folds: 4
   crop_size: [512, 1024]
   uCT: True
-  calc_meanstd: True
+  calc_meanstd: False
   # Loss parameters: possible losses are "bce", "jaccard" and "combined"
   loss: combined
   log_jaccard: true
@@ -13,14 +13,14 @@ training:
   gamma_range: [0.7, 1.5]
   scale_range: [0.9, 1.1]
   rotation_range: [-10, 10]
-  shear_range: [-0.2, 0.2]
+  shear_range: [-0.1, 0.1]
   sigma: [1, 5]
-  hsv_range: [0, 255]
+  hsv_range: [0, 50]
   gain_range_sp: 0.1
   gain_range_gn: 0.5
   brightness_range: [5, 15]
-  contrast_range: 0.3
-  translation_range: 50
+  contrast_range: 0.2
+  translation_range: 30
   v_range: [0.000001, 0.0009]
   transform_probability: 0.5
   # LR reduction
