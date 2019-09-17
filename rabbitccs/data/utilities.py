@@ -5,7 +5,7 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 
 
-def load_images(path, n_jobs=12, rgb=False):
+def load_images(path, n_jobs=12, rgb=False, uCT=False):
     """
     Loads multiple images from directory and stacks them into 3D numpy array
 
@@ -28,9 +28,18 @@ def load_images(path, n_jobs=12, rgb=False):
 
     # Exclude extra files
     newlist = []
-    for file in files:
-        if file.endswith('.png') or file.endswith('.bmp') or file.endswith('.tif'):
-            newlist.append(file)
+    if uCT:
+        for file in files:
+            if file.endswith('.png') or file.endswith('.bmp') or file.endswith('.tif'):
+                try:
+                    int(file[-7:-4])
+                    newlist.append(file)
+                except ValueError:
+                    continue
+    else:
+        for file in files:
+            if file.endswith('.png') or file.endswith('.bmp') or file.endswith('.tif'):
+                newlist.append(file)
     files = newlist[:]  # replace list
     files.sort()
 
@@ -124,7 +133,8 @@ def save(path, file_name, data, n_jobs=12, dtype='.png'):
 
     # Parallel saving (nonparallel if n_jobs = 1)
     Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
-                            (path + '/' + file_name + str(k).zfill(8) + dtype, data[:, :, k].astype(np.uint8))
+                            (path + '/' + file_name + '_' + str(k).zfill(8) + dtype,
+                             data[:, :, k].squeeze().astype('uint8'))
                             for k in tqdm(range(nfiles), 'Saving dataset'))
 
 

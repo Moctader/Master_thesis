@@ -23,7 +23,7 @@ cv2.setNumThreads(0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_root', type=Path, default='../../../Data/images_insaf/')
+    parser.add_argument('--dataset_root', type=Path, default='../../../Data/images/')
     parser.add_argument('--save_dir', type=Path, default='../../../Data/predictions_test_insaf/')
     parser.add_argument('--bs', type=int, default=1)
     parser.add_argument('--plot', type=bool, default=False)

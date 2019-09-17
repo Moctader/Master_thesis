@@ -7,8 +7,10 @@ import argparse
 import pathlib
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_root', type=pathlib.Path, default='../../RabbitSegmentation/Data/images_test/')
-parser.add_argument('--mask_dir', type=pathlib.Path, default='../../RabbitSegmentation/Data/predictions_test/')
+parser.add_argument('--dataset_root', type=pathlib.Path,
+                    default='/media/dios/dios2/RabbitSegmentation/µCT/images_test/8C_M1_lateral_condyle_XZ')
+parser.add_argument('--mask_dir', type=pathlib.Path,
+                    default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_4fold/8C_M1_lateral_condyle_XZ/Largest')
 parser.add_argument('--crop', type=bool, default=False)
 parser.add_argument('--saved', type=bool, default=True)
 parser.add_argument('--plot', type=bool, default=True)
@@ -16,8 +18,8 @@ parser.add_argument('--largest', type=bool, default=False)
 args = parser.parse_args()
 
 # Load and set paths
-im_files, data = load(args.dataset_root, rgb=True)
-mask_files, mask = load(args.mask_dir, rgb=False)
+im_files, data = load(args.dataset_root, rgb=True, uCT=True)
+mask_files, mask = load(args.mask_dir, rgb=False, uCT=True)
 
 # Expand mask to 3 channels
 # mask_large = np.zeros((mask.shape[0], mask.shape[1], 3, mask.shape[2]))
@@ -56,7 +58,7 @@ if args.plot:
 # Save images
 if args.saved:
     save_im = '/media/dios/dios2/HistologySegmentation/Images_cropped2'
-    save_im_ref = '../../RabbitSegmentation/Data/predictions_reference/'
+    save_im_ref = '/media/dios/dios2/RabbitSegmentation/µCT/predictions_4fold/8C_M1_lateral_condyle_XZ/Contour'
     save_mask = '/media/dios/dios2/HistologySegmentation/Masks_cropped2'
 
     if args.plot:

@@ -23,7 +23,7 @@ cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
 
 
-def inference(img_full):
+def inference(img_full, device=1):
     x, y, ch = img_full.shape
     mask_full = np.zeros((x, y))
 
@@ -46,7 +46,7 @@ def inference(img_full):
             # Move tile to GPU
             tiles_batch = (tiles_batch.float() / 255.).to(device)
             # Predict and move back to CPU
-            pred_batch = torch.sigmoid(model_list[fold](tiles_batch))  # .detach()
+            pred_batch = torch.sigmoid(model_list[fold](tiles_batch)).detach()
 
             # Merge on GPU
             merger.integrate_batch(pred_batch, coords_batch)
@@ -88,12 +88,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images_test')
-    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions/')
-    parser.add_argument('--bs', type=int, default=8)
+    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_4_fold/')
+    parser.add_argument('--bs', type=int, default=2)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
-    parser.add_argument('--snapshot', type=Path, default='../../../workdir/snapshots/dios-erc-gpu_2019_09_12_14_34_22/')
+    parser.add_argument('--snapshot', type=Path,
+                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_13_10_26_08_4_fold/')
     parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.bmp')
     args = parser.parse_args()
 
@@ -109,6 +110,7 @@ if __name__ == "__main__":
 
     # Load models
     models = glob(str(args.snapshot) + '/*fold_[0-9]_*.pth')
+    #models = glob(str(args.snapshot) + '/*fold_3_*.pth')
     models.sort()
     #device = auto_detect_device()
     device = 1  # Use the second GPU for inference
@@ -120,6 +122,7 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load(models[fold]))
         model.eval()
         model_list.append(model)
+    print(f'Found {len(model_list)} models.')
 
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
@@ -128,8 +131,8 @@ if __name__ == "__main__":
         sleep(0.5); print(f'==> Processing sample: {sample}')
 
         # Load image stacks
-        data_xz = load(str(args.dataset_root / sample), rgb=True)  # X-Z-Y-Ch
-        data_yz = np.transpose(data_xz, (2, 1, 0, 3))  # Y-Z-X-Ch
+        data_xz = np.transpose(load(str(args.dataset_root / sample), rgb=True), (1, 0, 2, 3))  # X-Z-Y-Ch
+        data_yz = np.transpose(data_xz, (0, 2, 1, 3))  # Y-Z-X-Ch
         mask_xz = np.zeros(data_xz.shape)[:, :, :, 0]  # Remove channel dimension
         mask_yz = np.zeros(data_yz.shape)[:, :, :, 0]
 
@@ -146,9 +149,12 @@ if __name__ == "__main__":
             mask_yz[:, :, slice] = inference(data_yz[:, :, slice, :])
 
         # Average probability maps
-        mask_final = ((mask_xz + np.transpose(mask_yz, (2, 1, 0))) / 2) > threshold
+        mask_final = ((mask_xz + np.transpose(mask_yz, (0, 2, 1))) / 2) >= threshold
+
+        # Convert to original orientation
+        mask_final = np.transpose(mask_final, (0, 2, 1)).astype('uint8') * 255
 
         # Save predicted full mask
-        save(str(args.save_dir), sample, mask_final.astype('uint8') * 255, dtype=args.dtype)
+        save(str(args.save_dir / sample), sample, mask_final, dtype=args.dtype)
 
-    print(f'Inference completed in {time() - start} seconds.')
+    print(f'Inference completed in {(time() - start) // 60} minutes, {(time() - start) % 60} seconds.')
