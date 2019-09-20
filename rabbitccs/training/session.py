@@ -35,7 +35,7 @@ def init_experiment(experiment='2D'):
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--model_unet', type=bool, default=False)
     parser.add_argument('--num_threads', type=int, default=16)
-    parser.add_argument('--bs', type=int, default=3)
+    parser.add_argument('--bs', type=int, default=16)
     parser.add_argument('--n_epochs', type=int, default=100)
     args = parser.parse_args()
 
@@ -43,14 +43,15 @@ def init_experiment(experiment='2D'):
         # µCT parameters
         args.data_location = args.data_location / 'µCT'
         args.experiment = './experiment_config_uCT.yml'
-        args.bs = 6
+        args.bs = 5
         args.n_epochs = 20
         #args.model_unet = True
-        with open(args.experiment, 'r') as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
-    else:
-        with open(args.experiment, 'r') as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
+    elif experiment == '2D_large':
+        args.data_location = args.data_location / 'human'
+
+    # Open configuration file
+    with open(args.experiment, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Seeding
     torch.manual_seed(args.seed)

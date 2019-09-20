@@ -14,7 +14,9 @@ from tqdm import tqdm
 from glob import glob
 from collagen.modelzoo.segmentation import EncoderDecoder
 from collagen.core.utils import auto_detect_device
+
 from rabbitccs.data.utilities import load, save
+from rabbitccs.data.visualizations import render_volume
 
 from pytorch_toolbelt.inference.tiles import ImageSlicer, CudaTileMerger
 from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image, to_numpy
@@ -87,14 +89,16 @@ if __name__ == "__main__":
     start = time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images_test')
-    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_4_fold/')
-    parser.add_argument('--bs', type=int, default=2)
+    #parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images')
+    #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold/')
+    parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
+    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold_trainingset/')
+    parser.add_argument('--bs', type=int, default=5)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path,
-                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_13_10_26_08_4_fold/')
+                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_18_15_32_33_8samples/')
     parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.bmp')
     args = parser.parse_args()
 
@@ -128,33 +132,42 @@ if __name__ == "__main__":
     args.save_dir.mkdir(exist_ok=True)
     samples = os.listdir(args.dataset_root)
     for sample in samples:
-        sleep(0.5); print(f'==> Processing sample: {sample}')
+        try:
+            sleep(0.5); print(f'==> Processing sample: {sample}')
 
-        # Load image stacks
-        data_xz = np.transpose(load(str(args.dataset_root / sample), rgb=True), (1, 0, 2, 3))  # X-Z-Y-Ch
-        data_yz = np.transpose(data_xz, (0, 2, 1, 3))  # Y-Z-X-Ch
-        mask_xz = np.zeros(data_xz.shape)[:, :, :, 0]  # Remove channel dimension
-        mask_yz = np.zeros(data_yz.shape)[:, :, :, 0]
+            # Load image stacks
+            data_xz, files = load(str(args.dataset_root / sample), rgb=True)
+            data_xz = np.transpose(data_xz, (1, 0, 2, 3))  # X-Z-Y-Ch
+            data_yz = np.transpose(data_xz, (0, 2, 1, 3))  # Y-Z-X-Ch
+            mask_xz = np.zeros(data_xz.shape)[:, :, :, 0]  # Remove channel dimension
+            mask_yz = np.zeros(data_yz.shape)[:, :, :, 0]
 
-        threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3
+            threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3
 
-        # Loop for image slices
-        input_x = config['training']['crop_size'][0]
-        input_y = config['training']['crop_size'][1]
-        # 1st orientation
-        for slice in tqdm(range(data_xz.shape[2]), desc='Running inference, XZ'):
-            mask_xz[:, :, slice] = inference(data_xz[:, :, slice, :])
-        # 2nd orientation
-        for slice in tqdm(range(data_yz.shape[2]), desc='Running inference, YZ'):
-            mask_yz[:, :, slice] = inference(data_yz[:, :, slice, :])
+            # Loop for image slices
+            input_x = config['training']['crop_size'][0]
+            input_y = config['training']['crop_size'][1]
+            # 1st orientation
+            for slice in tqdm(range(data_xz.shape[2]), desc='Running inference, XZ'):
+                mask_xz[:, :, slice] = inference(data_xz[:, :, slice, :])
+            # 2nd orientation
+            for slice in tqdm(range(data_yz.shape[2]), desc='Running inference, YZ'):
+                mask_yz[:, :, slice] = inference(data_yz[:, :, slice, :])
 
-        # Average probability maps
-        mask_final = ((mask_xz + np.transpose(mask_yz, (0, 2, 1))) / 2) >= threshold
+            # Average probability maps
+            mask_final = ((mask_xz + np.transpose(mask_yz, (0, 2, 1))) / 2) >= threshold
 
-        # Convert to original orientation
-        mask_final = np.transpose(mask_final, (0, 2, 1)).astype('uint8') * 255
+            # Convert to original orientation
+            mask_final = np.transpose(mask_final, (0, 2, 1)).astype('uint8') * 255
 
-        # Save predicted full mask
-        save(str(args.save_dir / sample), sample, mask_final, dtype=args.dtype)
+            # Save predicted full mask
+            save(str(args.save_dir / sample), files, mask_final, dtype=args.dtype)
+
+            render_volume(data_yz[:, :, :, 0] * mask_final,
+                          savepath=str(args.save_dir / 'visualizations' / (sample + '.png')),
+                          white=True, use_outline=False)
+        except:
+            print(f'Sample {sample} failed.')
+            continue
 
     print(f'Inference completed in {(time() - start) // 60} minutes, {(time() - start) % 60} seconds.')

@@ -89,7 +89,7 @@ def load(path, axis=(0, 1, 2), n_jobs=12, rgb=False):
     if axis != (0, 1, 2):
         return np.transpose(np.array(data), axis)
 
-    return np.array(data)
+    return np.array(data), files
 
 
 def read_image_gray(path, file):
@@ -132,10 +132,17 @@ def save(path, file_name, data, n_jobs=12, dtype='.png'):
         data = data * 255
 
     # Parallel saving (nonparallel if n_jobs = 1)
-    Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
-                            (path + '/' + file_name + '_' + str(k).zfill(8) + dtype,
-                             data[:, :, k].squeeze().astype('uint8'))
-                            for k in tqdm(range(nfiles), 'Saving dataset'))
+    if type(file_name) is list:
+        Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
+                                (path + '/' + file_name[k][:-4] + dtype,
+                                 data[:, :, k].astype('uint8'))
+                                for k in tqdm(range(nfiles), 'Saving dataset'))
+
+    else:
+        Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
+                                (path + '/' + file_name + '_' + str(k).zfill(8) + dtype,
+                                 data[:, :, k].astype('uint8'))
+                                for k in tqdm(range(nfiles), 'Saving dataset'))
 
 
 def save_images(path, file_names, data, n_jobs=12, crop=False):
@@ -222,3 +229,4 @@ def mask2rle(img, width, height):
             current_pixel += 1
 
     return " ".join(rle)
+
