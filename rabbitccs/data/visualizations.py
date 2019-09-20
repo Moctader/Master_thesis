@@ -27,9 +27,6 @@ def render_volume(data, savepath=None, white=True, use_outline=False):
     use_outline : bool
         Choose whether to use an outline to show data extent.
     """
-    import vtk
-    import numpy as np
-    import os
     # Input data as uint8
     data_matrix = np.uint8(data)
     dims = np.shape(data)
@@ -59,7 +56,10 @@ def render_volume(data, savepath=None, white=True, use_outline=False):
     color_transfer = vtk.vtkColorTransferFunction()
     color_transfer.AddRGBPoint(50, 0.0, 0.0, 0.0)
     color_transfer.AddRGBPoint(100, 0.5, 0.5, 0.5)
-    color_transfer.AddRGBPoint(255, 1.0, 1.0, 1.0)
+    if white:
+        color_transfer.AddRGBPoint(255, 0.7, 0.7, 0.7)
+    else:
+        color_transfer.AddRGBPoint(255, 1.0, 1.0, 1.0)
 
     # Apply transparency and colors to volume
     volume_property = vtk.vtkVolumeProperty()

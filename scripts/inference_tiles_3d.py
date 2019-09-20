@@ -94,7 +94,6 @@ if __name__ == "__main__":
     parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
     parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold_trainingset/')
     parser.add_argument('--bs', type=int, default=5)
-    parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path,
@@ -131,6 +130,7 @@ if __name__ == "__main__":
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
     samples = os.listdir(args.dataset_root)
+    samples.sort()
     for sample in samples:
         try:
             sleep(0.5); print(f'==> Processing sample: {sample}')
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             save(str(args.save_dir / sample), files, mask_final, dtype=args.dtype)
 
             render_volume(data_yz[:, :, :, 0] * mask_final,
-                          savepath=str(args.save_dir / 'visualizations' / (sample + '.png')),
+                          savepath=str(args.save_dir / 'visualizations' / (sample + args.dtype)),
                           white=True, use_outline=False)
         except:
             print(f'Sample {sample} failed.')
