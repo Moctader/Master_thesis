@@ -28,6 +28,8 @@ cv2.setNumThreads(0)
 def inference(img_full, device=1):
     x, y, ch = img_full.shape
     mask_full = np.zeros((x, y))
+    input_x = config['training']['crop_size'][0]
+    input_y = config['training']['crop_size'][1]
 
     # Cut large image into overlapping tiles
     tiler = ImageSlicer(img_full.shape, tile_size=(input_x, input_y),
@@ -92,8 +94,9 @@ if __name__ == "__main__":
     #parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images')
     #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold/')
     parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
-    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold_trainingset/')
-    parser.add_argument('--bs', type=int, default=5)
+    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold_evaluation/')
+    parser.add_argument('--bs', type=int, default=4)
+    parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path,
@@ -125,15 +128,16 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load(models[fold]))
         model.eval()
         model_list.append(model)
+    threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3  # Set probability threshold
     print(f'Found {len(model_list)} models.')
 
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
-    samples = os.listdir(args.dataset_root)
+    samples = [os.path.basename(x) for x in glob(str(args.dataset_root / '*XZ'))]
     samples.sort()
-    for sample in samples:
+    for idx, sample in enumerate(samples):
         try:
-            sleep(0.5); print(f'==> Processing sample: {sample}')
+            sleep(0.5); print(f'==> Processing sample {idx + 1} of {len(samples)}: {sample}')
 
             # Load image stacks
             data_xz, files = load(str(args.dataset_root / sample), rgb=True)
@@ -142,11 +146,7 @@ if __name__ == "__main__":
             mask_xz = np.zeros(data_xz.shape)[:, :, :, 0]  # Remove channel dimension
             mask_yz = np.zeros(data_yz.shape)[:, :, :, 0]
 
-            threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3
-
             # Loop for image slices
-            input_x = config['training']['crop_size'][0]
-            input_y = config['training']['crop_size'][1]
             # 1st orientation
             for slice in tqdm(range(data_xz.shape[2]), desc='Running inference, XZ'):
                 mask_xz[:, :, slice] = inference(data_xz[:, :, slice, :])
@@ -156,6 +156,7 @@ if __name__ == "__main__":
 
             # Average probability maps
             mask_final = ((mask_xz + np.transpose(mask_yz, (0, 2, 1))) / 2) >= threshold
+            mask_xz = []; mask_yz = []; data_xz = []
 
             # Convert to original orientation
             mask_final = np.transpose(mask_final, (0, 2, 1)).astype('uint8') * 255

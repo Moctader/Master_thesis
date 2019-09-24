@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 from pathlib import Path
+from glob import glob
 import argparse
 import dill
 import yaml
@@ -21,7 +22,7 @@ cv2.setNumThreads(0)
 
 if __name__ == "__main__":
     start = time()
-    pred_path = Path('/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold_trainingset')
+    pred_path = Path('/media/dios/dios2/RabbitSegmentation/µCT/images')
     snapshot = Path('dios-erc-gpu_2019_09_18_15_32_33_8samples')
 
     parser = argparse.ArgumentParser()
@@ -52,16 +53,22 @@ if __name__ == "__main__":
 
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
-    samples = os.listdir(args.mask_path)
+    samples = [os.path.basename(x) for x in glob(str(args.mask_path / '*XZ'))]
     samples.sort()
-    for sample in samples:
+    for idx, sample in enumerate(samples):
         try:
-            sleep(0.5); print(f'==> Processing sample: {sample}')
+            sleep(0.5); print(f'==> Processing sample {idx + 1} of {len(samples)}: {sample}')
 
             # Load image stacks
             mask, files_mask = load(str(args.mask_path / sample), rgb=False, n_jobs=args.n_threads)
-            pred, files_pred = load(str(args.prediction_path / sample), rgb=False, n_jobs=args.n_threads)
+            pred, files_pred = load(str(args.prediction_path / sample / 'Largest'), rgb=False, n_jobs=args.n_threads)
 
+            # Crop in case of inconsistency
+            crop = min(pred.shape, mask.shape)
+            mask = mask[:crop[0], :crop[1], :crop[2]]
+            pred = pred[:crop[0], :crop[1], :crop[2]]
+
+            # Evaluate metrics
             conf_matrix = calculate_conf(pred.astype(np.bool), mask.astype(np.bool), args.n_labels)
             dice = calculate_dice(conf_matrix)[1]
             iou = calculate_iou(conf_matrix)[1]
