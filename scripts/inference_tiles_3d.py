@@ -9,6 +9,7 @@ import argparse
 import dill
 import torch
 import yaml
+import sys
 from time import sleep, time
 from tqdm import tqdm
 from glob import glob
@@ -25,7 +26,7 @@ cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
 
 
-def inference(img_full, device=1):
+def inference(img_full, device='cuda'):
     x, y, ch = img_full.shape
     mask_full = np.zeros((x, y))
     input_x = config['training']['crop_size'][0]
@@ -92,17 +93,23 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     #parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images')
+    parser.add_argument('--dataset_root', type=Path,
+                        default='/media/dios/databank/Lingwei_Huang/Used in method manuscript for CC segmentation/')
+    parser.add_argument('--save_dir', type=Path,
+                        default='/media/dios/databank/Lingwei_Huang/Used in method manuscript for CC segmentation/')
     #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold/')
-    parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
-    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold_evaluation/')
+    #parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
+    #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_4_fold_evaluation/')
     parser.add_argument('--bs', type=int, default=4)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path,
-                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_18_15_32_33_8samples/')
+                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_13_10_26_08_4_fold_uCT/')
     parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.bmp')
     args = parser.parse_args()
+    subdir = 'NN_prediction'
+
 
     # Load snapshot configuration
     with open(args.snapshot / 'config.yml', 'r') as f:
@@ -119,7 +126,9 @@ if __name__ == "__main__":
     #models = glob(str(args.snapshot) + '/*fold_3_*.pth')
     models.sort()
     #device = auto_detect_device()
-    device = 1  # Use the second GPU for inference
+    device = 'cuda'  # Use the second GPU for inference
+    os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
     # List the models
     model_list = []
@@ -133,7 +142,8 @@ if __name__ == "__main__":
 
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
-    samples = [os.path.basename(x) for x in glob(str(args.dataset_root / '*XZ'))]
+    #samples = [os.path.basename(x) for x in glob(str(args.dataset_root / '*XZ'))]
+    samples = os.listdir(args.dataset_root)
     samples.sort()
     for idx, sample in enumerate(samples):
         try:
@@ -162,13 +172,16 @@ if __name__ == "__main__":
             mask_final = np.transpose(mask_final, (0, 2, 1)).astype('uint8') * 255
 
             # Save predicted full mask
-            save(str(args.save_dir / sample), files, mask_final, dtype=args.dtype)
+            if 'subdir' in locals():
+                save(str(args.save_dir / sample / subdir), files, mask_final, dtype=args.dtype)
+            else:
+                save(str(args.save_dir / sample), files, mask_final, dtype=args.dtype)
 
             render_volume(data_yz[:, :, :, 0] * mask_final,
                           savepath=str(args.save_dir / 'visualizations' / (sample + args.dtype)),
                           white=True, use_outline=False)
-        except:
-            print(f'Sample {sample} failed.')
+        except Exception as e:
+            print(f'Sample {sample} failed due to error:\n\n {e}\n\n.')
             continue
 
     print(f'Inference completed in {(time() - start) // 60} minutes, {(time() - start) % 60} seconds.')

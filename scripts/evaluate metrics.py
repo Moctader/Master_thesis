@@ -23,7 +23,9 @@ cv2.setNumThreads(0)
 if __name__ == "__main__":
     start = time()
     pred_path = Path('/media/dios/dios2/RabbitSegmentation/µCT/images')
-    snapshot = Path('dios-erc-gpu_2019_09_18_15_32_33_8samples')
+    #snapshot = Path('dios-erc-gpu_2019_09_18_15_32_33_8samples')
+    snapshot = Path('dios-erc-gpu_2019_09_13_10_26_08_4_fold_uCT')
+    subdir = 'Largest_4fold'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--mask_path', type=Path, default='../../../Data/µCT/masks')
@@ -61,7 +63,10 @@ if __name__ == "__main__":
 
             # Load image stacks
             mask, files_mask = load(str(args.mask_path / sample), rgb=False, n_jobs=args.n_threads)
-            pred, files_pred = load(str(args.prediction_path / sample / 'Largest'), rgb=False, n_jobs=args.n_threads)
+            if 'subdir' in locals():
+                pred, files_pred = load(str(args.prediction_path / sample / subdir), rgb=False, n_jobs=args.n_threads)
+            else:
+                pred, files_pred = load(str(args.prediction_path / sample), rgb=False, n_jobs=args.n_threads)
 
             # Crop in case of inconsistency
             crop = min(pred.shape, mask.shape)

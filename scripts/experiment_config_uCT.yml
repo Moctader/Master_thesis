@@ -32,6 +32,7 @@ model:
   decoder_normalization: IN
   n_outputs: 1
   spatial_dropout: 0.1
+  bayesian_dropout: 0.5
   backbone: resnet50
   decoder: FPN
 data_sampling:
