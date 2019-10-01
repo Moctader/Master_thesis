@@ -10,7 +10,8 @@ if __name__ == "__main__":
     images_loc = base_path / 'images'
 
     # List files
-    for sample in os.listdir(images_loc):
+    samples = os.listdir(images_loc)
+    for sample in samples:
         im_path = images_loc / Path(sample)
         mask_path = masks_loc / Path(sample)
         images = list(map(lambda x: x, im_path.glob('**/*[0-9].[pb][nm][gp]')))

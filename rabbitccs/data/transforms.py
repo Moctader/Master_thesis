@@ -98,10 +98,10 @@ def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
             slt.CropTransform(crop_mode='r', crop_size=crop_size),
             # Intensity
 
-            slt.ImageGammaCorrection(gamma_range=tuple(trf['gamma_range']), p=prob),
-            slt.ImageRandomHSV(h_range=tuple(trf['hsv_range']),
-                               s_range=tuple(trf['hsv_range']),
-                               v_range=tuple(trf['hsv_range']), p=prob),
+            #slt.ImageGammaCorrection(gamma_range=tuple(trf['gamma_range']), p=prob),
+            #slt.ImageRandomHSV(h_range=tuple(trf['hsv_range']),
+            #                   s_range=tuple(trf['hsv_range']),
+            #                   v_range=tuple(trf['hsv_range']), p=prob),
             slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
             slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob),
             slc.SelectiveStream([

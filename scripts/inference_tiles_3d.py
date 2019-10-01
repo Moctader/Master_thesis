@@ -16,7 +16,7 @@ from glob import glob
 from collagen.modelzoo.segmentation import EncoderDecoder
 from collagen.core.utils import auto_detect_device
 
-from rabbitccs.data.utilities import load, save
+from rabbitccs.data.utilities import load, save, print_orthogonal
 from rabbitccs.data.visualizations import render_volume
 
 from pytorch_toolbelt.inference.tiles import ImageSlicer, CudaTileMerger
@@ -95,17 +95,15 @@ if __name__ == "__main__":
     #parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images')
     parser.add_argument('--dataset_root', type=Path,
                         default='/media/dios/databank/Lingwei_Huang/Used in method manuscript for CC segmentation/')
-    parser.add_argument('--save_dir', type=Path,
-                        default='/media/dios/databank/Lingwei_Huang/Used in method manuscript for CC segmentation/')
     #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_5_fold/')
     #parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
-    #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_4_fold_evaluation/')
+    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_databank_12samples/')
     parser.add_argument('--bs', type=int, default=4)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path,
-                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_13_10_26_08_4_fold_uCT/')
+                        default='../../../workdir/snapshots/dios-erc-gpu_2019_09_27_16_08_10_12samples/')
     parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.bmp')
     args = parser.parse_args()
     subdir = 'NN_prediction'
@@ -145,6 +143,7 @@ if __name__ == "__main__":
     #samples = [os.path.basename(x) for x in glob(str(args.dataset_root / '*XZ'))]
     samples = os.listdir(args.dataset_root)
     samples.sort()
+    #samples = [samples[id] for id in [7, 11]]  # Get intended samples from list
     for idx, sample in enumerate(samples):
         try:
             sleep(0.5); print(f'==> Processing sample {idx + 1} of {len(samples)}: {sample}')
@@ -178,10 +177,15 @@ if __name__ == "__main__":
                 save(str(args.save_dir / sample), files, mask_final, dtype=args.dtype)
 
             render_volume(data_yz[:, :, :, 0] * mask_final,
-                          savepath=str(args.save_dir / 'visualizations' / (sample + args.dtype)),
+                          savepath=str(args.save_dir / 'visualizations' / (sample + '_render' + args.dtype)),
                           white=True, use_outline=False)
+
+            print_orthogonal(data_yz[:, :, :, 0], mask=mask_final, invert=True, res=3.2, title=None, cbar=True,
+                             savepath=str(args.save_dir / 'visualizations' / (sample + '_prediction.png')),
+                             scale_factor=1000)
         except Exception as e:
             print(f'Sample {sample} failed due to error:\n\n {e}\n\n.')
             continue
 
-    print(f'Inference completed in {(time() - start) // 60} minutes, {(time() - start) % 60} seconds.')
+    dur = time() - start
+    print(f'Inference completed in {dur // 3600} hours, {(dur % 3600) // 60} minutes, {dur % 60} seconds.')

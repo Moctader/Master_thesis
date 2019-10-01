@@ -1,5 +1,6 @@
 import numpy as np
 from torch import optim, cuda, nn
+from time import time
 import gc
 import cv2
 import segmentation_models_pytorch as smp
@@ -19,6 +20,8 @@ cv2.setNumThreads(0)
 
 
 if __name__ == "__main__":
+    # Timing
+    start = time()
 
     # Initialize experiment
     args, config, device, snapshots_dir, snapshot_name = init_experiment(experiment='3D')
@@ -71,4 +74,5 @@ if __name__ == "__main__":
         cuda.empty_cache()
         gc.collect()
 
-
+    dur = time() - start
+    print(f'Model trained in {dur // 3600} hours, {(dur % 3600) // 60} minutes, {dur % 60} seconds.')

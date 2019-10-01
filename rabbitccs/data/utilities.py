@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import os
 import cv2
 from tqdm import tqdm
@@ -82,9 +84,9 @@ def load(path, axis=(0, 1, 2), n_jobs=12, rgb=False):
     files = newlist[:]  # replace list
     # Load images
     if rgb:
-        data = Parallel(n_jobs=n_jobs)(delayed(read_image_rgb)(path, file) for file in tqdm(files, 'Loading'))
+        data = Parallel(n_jobs=n_jobs)(delayed(read_image_rgb)(path, file) for file in files)
     else:
-        data = Parallel(n_jobs=n_jobs)(delayed(read_image_gray)(path, file) for file in tqdm(files, 'Loading'))
+        data = Parallel(n_jobs=n_jobs)(delayed(read_image_gray)(path, file) for file in files)
     # Transpose array
     if axis != (0, 1, 2):
         return np.transpose(np.array(data), axis)
@@ -230,3 +232,109 @@ def mask2rle(img, width, height):
 
     return " ".join(rle)
 
+def print_orthogonal(data, mask=None, invert=True, res=3.2, title=None, cbar=True, savepath=None, scale_factor=1000):
+    """Print three orthogonal planes from given 3D-numpy array.
+
+    Set pixel resolution in µm to set axes correctly.
+
+    Parameters
+    ----------
+    data : 3D numpy array
+        Three-dimensional input data array.
+    savepath : str
+        Full file name for the saved image. If not given, Image is only shown.
+        Example: C:/path/data.png
+    invert : bool
+        Choose whether to invert y-axis of the data
+    res : float
+        Imaging resolution. Sets tick frequency for plots.
+    title : str
+        Title for the image.
+    cbar : bool
+        Choose whether to use colorbar below the images.
+    """
+    alpha = 0.5
+    cmap = 'autumn'
+    dims = np.array(np.shape(data)) // 2
+    dims2 = np.array(np.shape(data))
+    x = np.linspace(0, dims2[0], dims2[0])
+    y = np.linspace(0, dims2[1], dims2[1])
+    z = np.linspace(0, dims2[2], dims2[2])
+    scale = 1 / res
+    if dims2[0] < scale_factor * scale:
+        xticks = np.arange(0, dims2[0], scale_factor * scale / 4)
+    else:
+        xticks = np.arange(0, dims2[0], scale_factor * scale / 2)
+    if dims2[1] < scale_factor * scale:
+        yticks = np.arange(0, dims2[1], scale_factor * scale / 4)
+    else:
+        yticks = np.arange(0, dims2[1], scale_factor * scale / 2)
+    if dims2[2] < scale_factor * scale:
+        zticks = np.arange(0, dims2[2], scale_factor * scale / 4)
+    else:
+        zticks = np.arange(0, dims2[2], scale_factor * scale / 2)
+
+    # Plot figure
+    fig = plt.figure(dpi=300)
+    ax1 = fig.add_subplot(131)
+    cax1 = ax1.imshow(data[:, :, dims[2]].T, cmap='gray')
+    if cbar and not isinstance(data[0, 0, dims[2]], np.bool_):
+        cbar1 = fig.colorbar(cax1, ticks=[np.min(data[:, :, dims[2]]), np.max(data[:, :, dims[2]])],
+                             orientation='horizontal')
+        cbar1.solids.set_edgecolor("face")
+    if mask is not None:
+        m = mask[:, :, dims[2]].T
+        ax1.imshow(np.ma.masked_array(m, m == 0), cmap=cmap, alpha=alpha)
+    plt.title('Transaxial (xy)')
+    ax2 = fig.add_subplot(132)
+    cax2 = ax2.imshow(data[:, dims[1], :].T, cmap='gray')
+    if cbar and not isinstance(data[0, dims[1], 0], np.bool_):
+        cbar2 = fig.colorbar(cax2, ticks=[np.min(data[:, dims[1], :]), np.max(data[:, dims[1], :])],
+                             orientation='horizontal')
+        cbar2.solids.set_edgecolor("face")
+    if mask is not None:
+        m = mask[:, dims[1], :].T
+        ax2.imshow(np.ma.masked_array(m, m == 0), cmap=cmap, alpha=alpha)
+    plt.title('Coronal (xz)')
+    ax3 = fig.add_subplot(133)
+    cax3 = ax3.imshow(data[dims[0], :, :].T, cmap='gray')
+    if cbar and not isinstance(data[dims[0], 0, 0], np.bool_):
+        cbar3 = fig.colorbar(cax3, ticks=[np.min(data[dims[0], :, :]), np.max(data[dims[0], :, :])],
+                             orientation='horizontal')
+        cbar3.solids.set_edgecolor("face")
+    if mask is not None:
+        m = mask[dims[0], :, :].T
+        ax3.imshow(np.ma.masked_array(m, m == 0), cmap=cmap, alpha=alpha)
+    plt.title('Sagittal (yz)')
+
+    # Give plot a title
+    if title is not None:
+        plt.suptitle(title)
+
+    ticks_x = ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x / scale))
+    ticks_y = ticker.FuncFormatter(lambda y, pos: '{0:g}'.format(y / scale))
+    ticks_z = ticker.FuncFormatter(lambda z, pos: '{0:g}'.format(z / scale))
+    ax1.xaxis.set_major_formatter(ticks_x)
+    ax1.yaxis.set_major_formatter(ticks_y)
+    ax2.xaxis.set_major_formatter(ticks_x)
+    ax2.yaxis.set_major_formatter(ticks_z)
+    ax3.xaxis.set_major_formatter(ticks_y)
+    ax3.yaxis.set_major_formatter(ticks_z)
+    ax1.set_xticks(xticks)
+    ax1.set_yticks(yticks)
+    ax2.set_xticks(xticks)
+    ax2.set_yticks(zticks)
+    ax3.set_xticks(yticks)
+    ax3.set_yticks(zticks)
+
+    # Invert y-axis
+    if invert:
+        ax1.invert_yaxis()
+        ax2.invert_yaxis()
+        ax3.invert_yaxis()
+    plt.tight_layout()
+
+    # Save the image
+    if savepath is not None:
+        fig.savefig(savepath, bbox_inches="tight", transparent=True)
+    plt.show()

@@ -24,12 +24,12 @@ cv2.setNumThreads(0)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_root', type=Path, default='../../../Data/images/')
-    parser.add_argument('--save_dir', type=Path, default='../../../Data/predictions_test_insaf/')
+    parser.add_argument('--save_dir', type=Path, default='../../../Data/predictions_train/')
     parser.add_argument('--bs', type=int, default=1)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config.yml')
-    parser.add_argument('--snapshot', type=Path, default='../../../workdir/snapshots/dios-erc-gpu_2019_08_29_15_40_58/')
+    parser.add_argument('--snapshot', type=Path, default='../../../workdir/snapshots/dios-erc-gpu_2019_09_11_10_34_29_reduced_affine_largeimages/')
     args = parser.parse_args()
 
     # Load snapshot configuration
@@ -63,8 +63,12 @@ if __name__ == "__main__":
     threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3
 
     # Loop for all images
-    input_x = args_experiment.crop_size[0]
-    input_y = args_experiment.crop_size[1]
+    try:
+        input_x = args_experiment.crop_size[0]
+        input_y = args_experiment.crop_size[1]
+    except AttributeError:
+        input_x = config['training']['crop_size'][0]
+        input_y = config['training']['crop_size'][1]
     for file in tqdm(files, desc='Running inference'):
 
         img_full = cv2.imread(file)

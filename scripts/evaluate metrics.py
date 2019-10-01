@@ -9,7 +9,7 @@ import yaml
 import pandas as pd
 from time import sleep, time
 
-from rabbitccs.data.utilities import load
+from rabbitccs.data.utilities import load, print_orthogonal
 from rabbitccs.data.visualizations import render_volume
 
 from deeppipeline.segmentation.evaluation.metrics import calculate_iou, calculate_dice, \
@@ -22,18 +22,24 @@ cv2.setNumThreads(0)
 
 if __name__ == "__main__":
     start = time()
-    pred_path = Path('/media/dios/dios2/RabbitSegmentation/µCT/images')
+    pred_path = Path('/media/dios/dios2/RabbitSegmentation/µCT/Used in method manuscript for CC segmentation/')
+    #pred_path = Path('/media/dios/databank/Lingwei_Huang/Used in method manuscript for CC segmentation/')
     #snapshot = Path('dios-erc-gpu_2019_09_18_15_32_33_8samples')
-    snapshot = Path('dios-erc-gpu_2019_09_13_10_26_08_4_fold_uCT')
-    subdir = 'Largest_4fold'
+    snapshot = Path('dios-erc-gpu_2019_09_27_16_08_10_12samples')
+    #subdir = 'Largest_4fold'
+    subdir = 'Prediction_12samples'
+    #subdir = 'Automatic_CC_segmentation'
+    subdir_mask = 'Manual_CC_mask_after_smoothing'
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mask_path', type=Path, default='../../../Data/µCT/masks')
+    #parser.add_argument('--mask_path', type=Path, default='../../../Data/µCT/masks')
+    parser.add_argument('--mask_path', type=Path, default=pred_path)
+    parser.add_argument('--image_path', type=Path, default=pred_path)
     parser.add_argument('--prediction_path', type=Path, default=pred_path)
-    parser.add_argument('--save_dir', type=Path, default=pred_path / 'evaluation')
+    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/images')
+    parser.add_argument('--eval_name', type=str, default='Automatic_CC_CTAn')
     parser.add_argument('--n_threads', type=int, default=16)
     parser.add_argument('--n_labels', type=int, default=2)
-    parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config_uCT.yml')
     parser.add_argument('--snapshot', type=Path,
                         default=Path('../../../workdir/snapshots/') / snapshot)
@@ -55,18 +61,23 @@ if __name__ == "__main__":
 
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
-    samples = [os.path.basename(x) for x in glob(str(args.mask_path / '*XZ'))]
+    #samples = [os.path.basename(x) for x in glob(str(args.mask_path / '*XZ'))]
+    samples = os.listdir(str(args.mask_path))
     samples.sort()
     for idx, sample in enumerate(samples):
         try:
             sleep(0.5); print(f'==> Processing sample {idx + 1} of {len(samples)}: {sample}')
 
             # Load image stacks
-            mask, files_mask = load(str(args.mask_path / sample), rgb=False, n_jobs=args.n_threads)
+            if 'subdir_mask' in locals():
+                mask, files_mask = load(str(args.mask_path / sample / subdir_mask), rgb=False, n_jobs=args.n_threads)
+            else:
+                mask, files_mask = load(str(args.mask_path / sample), rgb=False, n_jobs=args.n_threads)
             if 'subdir' in locals():
                 pred, files_pred = load(str(args.prediction_path / sample / subdir), rgb=False, n_jobs=args.n_threads)
             else:
                 pred, files_pred = load(str(args.prediction_path / sample), rgb=False, n_jobs=args.n_threads)
+            data, files_data = load(str(args.image_path / sample), rgb=False, n_jobs=args.n_threads)
 
             # Crop in case of inconsistency
             crop = min(pred.shape, mask.shape)
@@ -86,6 +97,13 @@ if __name__ == "__main__":
                           savepath=str(args.save_dir / 'visualizations' / (sample + '_difference.png')),
                           white=False, use_outline=False)
 
+            print_orthogonal(data, mask=mask, invert=False, res=3.2, title=None, cbar=True,
+                             savepath=str(args.save_dir / 'visualizations' / (sample + '_reference.png')),
+                             scale_factor=1500)
+            print_orthogonal(data, mask=pred, invert=False, res=3.2, title=None, cbar=True,
+                             savepath=str(args.save_dir / 'visualizations' / (sample + '_prediction.png')),
+                             scale_factor=1500)
+
             # Update results
             results['Sample'].append(sample)
             results['Dice'].append(dice)
@@ -93,8 +111,8 @@ if __name__ == "__main__":
             results['Similarity'].append(sim)
 
 
-        except ValueError:
-            print(f'Sample {sample} failing, dimensions not consistent!')
+        except Exception as e:
+            print(f'Sample {sample} failing due to error:\n\n{e}\n!')
             continue
 
     # Add average value to
@@ -104,7 +122,7 @@ if __name__ == "__main__":
     results['Similarity'].append(np.average(results['Similarity']))
 
     # Write to excel
-    writer = pd.ExcelWriter(str(args.save_dir / ('metrics_' + str(snapshot))) + '.xlsx')
+    writer = pd.ExcelWriter(str(args.save_dir / 'evaluation' / ('metrics_' + str(snapshot) + '_' + args.eval_name)) + '.xlsx')
     df1 = pd.DataFrame(results)
     df1.to_excel(writer, sheet_name='Metrics')
     writer.save()
