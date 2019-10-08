@@ -19,14 +19,15 @@ if __name__ == "__main__":
 
 
     parser = argparse.ArgumentParser()
-    #parser.add_argument('--mask_path', type=Path, default='../../../Data/masks')
+    parser.add_argument('--mask_path', type=Path, default='../../../Data/masks')
     #parser.add_argument('--mask_path', type=Path, default='/media/dios/databank/Lingwei_Huang/Used histology images and CC masks')
     parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/results')
 
     parser.add_argument('--n_threads', type=int, default=16)
     parser.add_argument('--plot', type=bool, default=False)
+    parser.add_argument('--save_images', type=bool, default=False)
     parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.png')
-    parser.add_argument('--eval_name', type=str, default='Histology_matched')
+    parser.add_argument('--eval_name', type=str, default='Histology_manual')
     args = parser.parse_args()
 
     # Initialize results
@@ -35,7 +36,7 @@ if __name__ == "__main__":
     # Loop for samples
     args.save_dir.mkdir(exist_ok=True)
     #samples = os.listdir(str(args.mask_path))
-    samples = [os.path.basename(x) for x in glob(str(args.mask_path / '*cc_mask*'))]
+    samples = [os.path.basename(x) for x in glob(str(args.mask_path / '*.png'))]
     samples.sort()
     sample_name = ''; thickness_list = []
     for sample in tqdm(samples, 'Analysing thickness'):
@@ -52,8 +53,9 @@ if __name__ == "__main__":
         # Load image
         img = cv2.imread(str(args.mask_path / sample), cv2.IMREAD_GRAYSCALE)
 
-        img = img[2:-2, 2:-2]
-        cv2.imwrite(str(args.save_dir / sample)[:-4] + args.dtype, img)
+        if args.save_images:
+            img = img[2:-2, 2:-2]
+            cv2.imwrite(str(args.save_dir / sample)[:-4] + args.dtype, img)
         if args.plot:
             plt.imshow(img); plt.title('Loaded image'); plt.show()
         # Threshold >= 125

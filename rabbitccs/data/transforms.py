@@ -69,7 +69,8 @@ def numpy2tens(x: np.ndarray, dtype='f') -> torch.Tensor:
 
 
 def wrap_solt(entry):
-    return sld.DataContainer(entry, 'IM')
+    return sld.DataContainer(entry, 'IM', transform_settings={0: {'interpolation': 'bilinear'},
+                                                              1: {'interpolation': 'nearest'}})
 
 
 def unwrap_solt(dc):
@@ -102,15 +103,18 @@ def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
             #slt.ImageRandomHSV(h_range=tuple(trf['hsv_range']),
             #                   s_range=tuple(trf['hsv_range']),
             #                   v_range=tuple(trf['hsv_range']), p=prob),
-            slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
-            slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob),
+            # Brightness/contrast
+            slc.SelectiveStream([
+                slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
+                slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob)]),
+            # Noise
             slc.SelectiveStream([
                 slt.ImageSaltAndPepper(p=prob, gain_range=trf['gain_range_sp']),
-                slt.ImageAdditiveGaussianNoise(p=prob, gain_range=trf['gain_range_gn'])]),
-            slc.SelectiveStream([
-                slt.ImageBlur(p=prob, blur_type='g', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma'])),
-                slt.ImageBlur(p=prob, blur_type='m', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma']))
-            ])]
+                slt.ImageAdditiveGaussianNoise(p=prob, gain_range=trf['gain_range_gn']),
+                slc.SelectiveStream([
+                    slt.ImageBlur(p=prob, blur_type='g', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma'])),
+                    slt.ImageBlur(p=prob, blur_type='m', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma']))])])
+        ]
     else:
         train_transforms = [
             # Projection
@@ -129,20 +133,23 @@ def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
             slt.PadTransform(pad_to=crop_size[1]),
             slt.CropTransform(crop_mode='r', crop_size=crop_size),
             # Intensity
-
-            slt.ImageGammaCorrection(gamma_range=tuple(trf['gamma_range']), p=prob),
-            slt.ImageRandomHSV(h_range=tuple(trf['hsv_range']),
-                               s_range=tuple(trf['hsv_range']),
-                               v_range=tuple(trf['hsv_range']), p=prob),
-            slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
-            slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob),
+            # Add an empty stream
+            #slc.SelectiveStream([]),
+            slc.SelectiveStream([
+                slt.ImageGammaCorrection(gamma_range=tuple(trf['gamma_range']), p=prob),
+                slt.ImageRandomHSV(h_range=tuple(trf['hsv_range']),
+                                   s_range=tuple(trf['hsv_range']),
+                                   v_range=tuple(trf['hsv_range']), p=prob)]),
+            slc.SelectiveStream([
+                slt.ImageRandomBrightness(brightness_range=tuple(trf['brightness_range']), p=prob),
+                slt.ImageRandomContrast(contrast_range=trf['contrast_range'], p=prob)]),
             slc.SelectiveStream([
                 slt.ImageSaltAndPepper(p=prob, gain_range=trf['gain_range_sp']),
-                slt.ImageAdditiveGaussianNoise(p=prob, gain_range=trf['gain_range_gn'])]),
-            slc.SelectiveStream([
-                slt.ImageBlur(p=prob, blur_type='g', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma'])),
-                slt.ImageBlur(p=prob, blur_type='m', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma']))
-            ])]
+                slt.ImageAdditiveGaussianNoise(p=prob, gain_range=trf['gain_range_gn']),
+                slc.SelectiveStream([
+                    slt.ImageBlur(p=prob, blur_type='g', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma'])),
+                    slt.ImageBlur(p=prob, blur_type='m', k_size=(3, 7, 11), gaussian_sigma=tuple(trf['sigma']))])])
+        ]
 
     train_trf = [
         wrap_solt,

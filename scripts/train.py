@@ -18,8 +18,8 @@ cv2.setNumThreads(0)
 if __name__ == "__main__":
 
     # Initialize experiment
-    #experiment = '2D'
-    experiment = '2D_large'
+    experiment = '2D'
+    #experiment = '2D_large'
     args, config, device, snapshots_dir, snapshot_name = init_experiment(experiment=experiment)
 
     # Optimization loss

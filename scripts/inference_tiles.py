@@ -4,6 +4,7 @@ import gc
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from pathlib import Path
+from time import time
 import argparse
 import dill
 import torch
@@ -22,14 +23,19 @@ cv2.setNumThreads(0)
 
 
 if __name__ == "__main__":
+    start = time()
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_root', type=Path, default='../../../Data/images/')
-    parser.add_argument('--save_dir', type=Path, default='../../../Data/predictions_train/')
+    # parser.add_argument('--dataset_root', type=Path, default='../../../Data/images/')
+    #parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/Histology/Insaf_series/images/binned3')
+    #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/Histology/Insaf_series/predictions_binned3')
+    parser.add_argument('--dataset_root', type=Path, default='/media/dios/dios2/RabbitSegmentation/SDG_DIC/Main')
+    parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/SDG_DIC/Predictions')
     parser.add_argument('--bs', type=int, default=1)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--experiment', default='./experiment_config.yml')
-    parser.add_argument('--snapshot', type=Path, default='../../../workdir/snapshots/dios-erc-gpu_2019_09_11_10_34_29_reduced_affine_largeimages/')
+    parser.add_argument('--snapshot', type=Path, default='../../../workdir/snapshots/dios-erc-gpu_2019_10_08_11_10_58/')
     args = parser.parse_args()
 
     # Load snapshot configuration
@@ -45,8 +51,7 @@ if __name__ == "__main__":
     # Load models
     models = glob(str(args.snapshot) + '/*fold_*.pth')
     models.sort()
-    #device = auto_detect_device()
-    device = 1  # Use the second GPU for inference
+    device = auto_detect_device()
 
     # List the models
     model_list = []
@@ -57,7 +62,7 @@ if __name__ == "__main__":
         model_list.append(model)
 
     # Find image files
-    files = glob(str(args.dataset_root) + '/*.png')
+    files = glob(str(args.dataset_root) + '/*zoomed*')
     args.save_dir.mkdir(exist_ok=True)
 
     threshold = 0.5 if config['training']['log_jaccard'] is False else 0.3
@@ -130,3 +135,6 @@ if __name__ == "__main__":
         # Free memory
         torch.cuda.empty_cache()
         gc.collect()
+
+    dur = time() - start
+    print(f'Inference completed in {(dur % 3600) // 60} minutes, {dur % 60} seconds.')
