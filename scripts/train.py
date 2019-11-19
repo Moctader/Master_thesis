@@ -8,7 +8,7 @@ from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, Soft
 from collagen.strategies import Strategy
 
 from rabbitccs.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
-    init_loss, parse_color_im
+    init_loss, parse_color_im, parse_grayscale
 from rabbitccs.data.splits import build_splits
 
 cv2.ocl.setUseOpenCL(False)
@@ -21,12 +21,17 @@ if __name__ == "__main__":
     experiment = '2D'
     #experiment = '2D_large'
     args, config, device, snapshots_dir, snapshot_name = init_experiment(experiment=experiment)
+    # Use color or grayscale
+    if config['training']['parse_color']:
+        parser = parse_color_im
+    else:
+        parser = parse_grayscale
 
     # Optimization loss
     loss_criterion = init_loss(config, device=device)
 
     # Split training folds
-    splits_metadata = build_splits(args.data_location, args, config, parse_color_im, snapshots_dir, snapshot_name)
+    splits_metadata = build_splits(args.data_location, args, config, parser, snapshots_dir, snapshot_name)
     mean, std = splits_metadata['mean'], splits_metadata['std']
 
     # Document transforms list
@@ -41,7 +46,7 @@ if __name__ == "__main__":
     for fold in range(config['training']['n_folds']):
         print(f'\nTraining fold {fold}')
 
-        data_provider = create_data_provider(args, config, parse_color_im, metadata=splits_metadata[f'fold_{fold}'],
+        data_provider = create_data_provider(args, config, parser, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
         model = EncoderDecoder(**config['model']).to(device)
 

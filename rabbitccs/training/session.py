@@ -35,8 +35,8 @@ def init_experiment(experiment='2D'):
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--model_unet', type=bool, default=False)
     parser.add_argument('--num_threads', type=int, default=16)
-    parser.add_argument('--bs', type=int, default=6)
-    parser.add_argument('--n_epochs', type=int, default=50)
+    parser.add_argument('--bs', type=int, default=5)
+    parser.add_argument('--n_epochs', type=int, default=100)
     args = parser.parse_args()
 
     if experiment == '3D':
@@ -188,6 +188,8 @@ def parse_grayscale(root, entry, transform, data_key, target_key):
     # Image and mask generation
     img = cv2.imread(str(entry.fname))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img[:, :, 1] = img[:, :, 0]
+    img[:, :, 2] = img[:, :, 0]
     mask = cv2.imread(str(entry.mask_fname), 0) / 255.
 
     if img.shape[0] != mask.shape[0]:

@@ -70,7 +70,9 @@ def build_splits(data_dir, args, config, parser, snapshots_dir, snapshot_name):
     print('==> STD:', std)
 
     # Group K-Fold by rabbit ID
-    gkf = model_selection.GroupKFold(n_splits=config['training']['n_folds'])
+    #gkf = model_selection.GroupKFold(n_splits=config['training']['n_folds'])
+    # K-fold by random shuffle
+    gkf = model_selection.KFold(n_splits=config['training']['n_folds'], shuffle=True, random_state=args.seed)
 
     # Create splits for all folds
     splits_metadata = dict()

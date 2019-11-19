@@ -6,12 +6,13 @@ training:
   crop_size: [512, 1024]
   uCT: False
   calc_meanstd: True
+  parse_color: False
   # Loss parameters: possible losses are "bce", "jaccard" and "combined"
   loss: combined
   log_jaccard: true
   # Transforms
   gamma_range: [0.8, 1.2]
-  scale_range: [0.5, 1.2]
+  scale_range: [0.8, 1.2]
   rotation_range: [-10, 10]
   shear_range: [-0.5, 0.5]
   sigma: [1, 10]

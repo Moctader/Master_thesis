@@ -5,6 +5,7 @@ import os
 import cv2
 from tqdm import tqdm
 from joblib import Parallel, delayed
+from skimage import measure
 
 
 def load_images(path, n_jobs=12, rgb=False, uCT=False):
@@ -232,6 +233,7 @@ def mask2rle(img, width, height):
 
     return " ".join(rle)
 
+
 def print_orthogonal(data, mask=None, invert=True, res=3.2, title=None, cbar=True, savepath=None, scale_factor=1000):
     """Print three orthogonal planes from given 3D-numpy array.
 
@@ -338,3 +340,29 @@ def print_orthogonal(data, mask=None, invert=True, res=3.2, title=None, cbar=Tru
     if savepath is not None:
         fig.savefig(savepath, bbox_inches="tight", transparent=True)
     plt.show()
+
+
+def largest_object(mask):
+    """
+    Keeps only the largest connected component of a binary segmentation mask.
+    """
+
+    out_img = np.zeros(mask.shape, dtype=np.uint8)
+
+
+    binary_img = mask > 0
+    blobs = measure.label(binary_img, connectivity=1)
+
+    props = measure.regionprops(blobs)
+
+    if not props:
+        print('No mask detected! Returning empty array')
+        return out_img
+
+    area = [ele.area for ele in props]
+    largest_blob_ind = np.argmax(area)
+    largest_blob_label = props[largest_blob_ind].label
+
+    out_img[blobs == largest_blob_label] = 255
+
+    return out_img
