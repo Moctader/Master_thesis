@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     # Initialize experiment
-    base_path = Path('/media/santeri/Transcend/CC_window_rec')
+    base_path = Path("/data/Repositories/HMDS_orientation/Data/train")
     subdir_to_be_removed = 'Prediction_sweep(1)'
     new_subdir_name = 'Prediction_sweep'
 

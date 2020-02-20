@@ -3,17 +3,17 @@ from torch import optim, cuda, nn
 from time import time
 import gc
 import cv2
-import segmentation_models_pytorch as smp
+#import segmentation_models_pytorch as smp
 
-from collagen.modelzoo.segmentation import EncoderDecoder
-from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
+#from collagen.modelzoo.segmentation import EncoderDecoder
+#from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
 from collagen.strategies import Strategy
 
 
-from rabbitccs.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
-    init_loss, parse_grayscale, parse_color_im
+from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
+    init_loss, parse_grayscale, init_model
 
-from rabbitccs.data.splits import build_splits
+from hmdscollagen.data.splits import build_splits
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
@@ -22,7 +22,6 @@ cv2.setNumThreads(0)
 if __name__ == "__main__":
     # Timing
     start = time()
-
     # Initialize experiment
     args, config, device, snapshots_dir, snapshot_name = init_experiment(experiment='3D')
 
@@ -30,7 +29,7 @@ if __name__ == "__main__":
     loss_criterion = init_loss(config, device=device)
 
     # Split training folds
-    splits_metadata = build_splits(args.data_location, args, config, parse_grayscale, snapshots_dir, snapshot_name)
+    splits_metadata = build_splits(args.data_dir, args, config, parse_grayscale, snapshots_dir, snapshot_name)
     mean, std = splits_metadata['mean'], splits_metadata['std']
 
     # Save transforms list
@@ -42,11 +41,10 @@ if __name__ == "__main__":
         # Initialize data provider
         data_provider = create_data_provider(args, config, parse_grayscale, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
-        # Initialize model model
-        if args.model_unet:
-            model = smp.Unet(config['model']['backbone'], encoder_weights="imagenet", activation='sigmoid')
-        else:
-            model = EncoderDecoder(**config['model']).to(device)
+
+        # model = EncoderDecoder(**config['model']).to(device)
+        model = init_model(config['model_selection'])
+
         # Optimizer
         optimizer = optim.Adam(model.parameters(),
                                lr=config['training']['lr'],
