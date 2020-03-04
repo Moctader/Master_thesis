@@ -6,7 +6,7 @@ import cv2
 
 #import segmentation_models_pytorch as smp
 
-#from collagen.modelzoo.segmentation import EncoderDecoder
+from collagen.modelzoo.segmentation import EncoderDecoder
 #from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
 from collagen.strategies import Strategy
 
