@@ -67,7 +67,6 @@ if __name__ == "__main__":
                             val_callbacks=val_cbs,
                             device=device)
         strategy.run()
-
         # Manage memory
         del strategy
         del model
