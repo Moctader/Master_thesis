@@ -3,6 +3,7 @@ from torch import optim, cuda, nn
 from time import time
 import gc
 import cv2
+
 #import segmentation_models_pytorch as smp
 
 #from collagen.modelzoo.segmentation import EncoderDecoder
@@ -14,6 +15,7 @@ from hmdscollagen.training.session import create_data_provider, init_experiment,
     init_loss, parse_grayscale, init_model
 
 from hmdscollagen.data.splits import build_splits
+
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
