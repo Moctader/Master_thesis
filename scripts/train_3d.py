@@ -43,7 +43,7 @@ if __name__ == "__main__":
         # Initialize data provider
         data_provider = create_data_provider(args, config, parse_grayscale, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
-
+# new
         # model = EncoderDecoder(**config['model']).to(device)
         model = init_model(config['model_selection'])
 
