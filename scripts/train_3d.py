@@ -3,18 +3,19 @@ from torch import optim, cuda, nn
 from time import time
 import gc
 import cv2
-
-#import segmentation_models_pytorch as smp
-
-from collagen.modelzoo.segmentation import EncoderDecoder
-#from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
+import torchvision.models as models
+from hmdscollagen.training.models import SimpleNet
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from hmdscollagen.training.models import Net
 from collagen.strategies import Strategy
-
-
+from collagen.modelzoo.segmentation import EncoderDecoder
 from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
     init_loss, parse_grayscale, init_model
 
 from hmdscollagen.data.splits import build_splits
+
 
 
 cv2.ocl.setUseOpenCL(False)
@@ -43,11 +44,14 @@ if __name__ == "__main__":
         # Initialize data provider
         data_provider = create_data_provider(args, config, parse_grayscale, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
-# new
-        # model = EncoderDecoder(**config['model']).to(device)
-        model = init_model(config['model_selection'])
+        model2 = EncoderDecoder(**config['model']).to(device)
+        #model = Net(**config['model']).to(device)
+        #model = init_model(config['model_selection'])
+        model = SimpleNet().to(device)
+
 
         # Optimizer
+        network=model
         optimizer = optim.Adam(model.parameters(),
                                lr=config['training']['lr'],
                                weight_decay=config['training']['wd'])

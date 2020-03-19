@@ -6,9 +6,9 @@ training:
   n_folds: 5 # number of cross-validation splits
   crop_size: [512, 1024] # image size
   uCT: True # Use 3D parameters
-  calc_meanstd: True # Calculate mean and std of data
+  calc_meanstd: False # Calculate mean and std of data
   # Loss parameters: possible losses are "bce", "jaccard" and "combined"
-  loss: combined
+  loss: mse
   log_jaccard: true
   # Transforms
   gamma_range: [0.7, 1.5]
