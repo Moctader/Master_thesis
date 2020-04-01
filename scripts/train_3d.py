@@ -19,7 +19,6 @@ from hmdscollagen.training.session import create_data_provider, init_experiment,
 from hmdscollagen.data.splits import build_splits
 
 
-
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
 

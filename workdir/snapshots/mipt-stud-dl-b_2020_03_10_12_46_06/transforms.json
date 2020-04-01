@@ -1,0 +1,23 @@
+{
+    "PadTransform": {
+        "indices": null,
+        "p": 1,
+        "padding": [
+            "z",
+            "inherit"
+        ],
+        "to": [
+            1024,
+            1024
+        ]
+    },
+    "CropTransform": {
+        "indices": null,
+        "mode": "r",
+        "p": 1,
+        "size": [
+            512,
+            1024
+        ]
+    }
+}

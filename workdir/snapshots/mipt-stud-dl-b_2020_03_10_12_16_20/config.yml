@@ -1,0 +1,67 @@
+data_sampling:
+  eval:
+    data_provider:
+      bfpn_val:
+        cate: ItemLoader
+        data_key: data
+        num_samples: 1
+        target_key: target
+  train:
+    data_provider:
+      bfpn_train:
+        cate: ItemLoader
+        data_key: data
+        num_samples: 1
+        target_key: target
+model:
+  backbone: resnet50
+  bayesian_dropout: 0.5
+  decoder: FPN
+  decoder_normalization: IN
+  n_outputs: 1
+  spatial_dropout: 0.1
+model_selection: simpleCNN
+training:
+  brightness_range:
+  - 5
+  - 15
+  calc_meanstd: false
+  contrast_range: 0.2
+  crop_size:
+  - 512
+  - 1024
+  eps: 1e-7
+  factor: 0.1
+  gain_range_gn: 0.5
+  gain_range_sp: 0.1
+  gamma_range:
+  - 0.7
+  - 1.5
+  hsv_range:
+  - 0
+  - 50
+  log_jaccard: true
+  loss: combined
+  lr: 0.0001
+  n_folds: 5
+  patience: 5
+  rotation_range:
+  - -10
+  - 10
+  scale_range:
+  - 0.9
+  - 1.1
+  shear_range:
+  - -0.1
+  - 0.1
+  sigma:
+  - 1
+  - 5
+  transform_probability: 0.5
+  translation_range: 30
+  uCT: true
+  use_LR_red: true
+  v_range:
+  - 1.0e-06
+  - 0.0009
+  wd: 0.0001
