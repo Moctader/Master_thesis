@@ -29,7 +29,7 @@ training:
   patience: 5
   factor: 0.1
   eps: 1e-7
-model_selection: "simpleCNN"
+model_selection: "SimpleNet"
 model:
   decoder_normalization: IN
   n_outputs: 1

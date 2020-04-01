@@ -1,3 +1,5 @@
+
+
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch
@@ -44,60 +46,13 @@ class SimpleCNN(torch.nn.Module):
         x = self.fc2(x)
         return (x)
 
-    #models = [SVR(), RandomForestRegressor(), LinearRegression(), Ridge(), Lasso(), XGBRegressor()]
-    import torchvision.models as models
-    resnet18 = models.resnet18(pretrained=True)
-    alexnet = models.alexnet(pretrained=True)
-    squeezenet = models.squeezenet1_0(pretrained=True)
-    vgg16 = models.vgg16(pretrained=True)
-    densenet = models.densenet161(pretrained=True)
-    #inception = models.inception_v3(pretrained=True)
-    googlenet = models.googlenet(pretrained=True)
-    shufflenet = models.shufflenet_v2_x1_0(pretrained=True)
-    mobilenet = models.mobilenet_v2(pretrained=True)
-    resnext50_32x4d = models.resnext50_32x4d(pretrained=True)
-    wide_resnet50_2 = models.wide_resnet50_2(pretrained=True)
-    mnasnet = models.mnasnet1_0(pretrained=True)
-
-import torch
-from torch.autograd import Variable
-from torch.nn import Linear, ReLU, CrossEntropyLoss, Sequential, Conv2d, MaxPool2d, Module, Softmax, BatchNorm2d, Dropout
-from torch.optim import Adam, SGD
-class Net(Module):
-    def __init__(self):
-        super(Net, self).__init__()
-
-        self.cnn_layers = Sequential(
-            # Defining a 2D convolution layer
-            Conv2d(1, 4, kernel_size=3, stride=1, padding=1),
-            BatchNorm2d(4),
-            ReLU(inplace=True),
-            MaxPool2d(kernel_size=2, stride=2),
-            # Defining another 2D convolution layer
-            Conv2d(4, 4, kernel_size=3, stride=1, padding=1),
-            BatchNorm2d(4),
-            ReLU(inplace=True),
-            MaxPool2d(kernel_size=2, stride=2),
-        )
-
-        self.linear_layers = Sequential(
-            Linear(4 * 7 * 7, 10)
-        )
-
-    # Defining the forward pass
-    def forward(self, x):
-        x = self.cnn_layers(x)
-        x = x.view(x.size(0), -1)
-        x = self.linear_layers(x)
-        return x
-
 
 import torch
 import torch.nn as nn
-
+from torch.nn import Linear, ReLU, CrossEntropyLoss, Sequential, Conv2d, MaxPool2d, Module, Softmax, BatchNorm2d, Dropout
 
 class SimpleNet(nn.Module):
-    def __init__(self,
+      def __init__(self,
                  num_classes=10,
                  final_channels=3,
                  # out_shape=None,
@@ -124,7 +79,8 @@ class SimpleNet(nn.Module):
 
         self.fc = nn.Linear(in_features=16 * 16 * 24, out_features=num_classes)
 
-    def forward(self, input, out_shape=None):
+      def forward(self, input, out_shape=None):
+
         output = self.conv1(input)
         output = self.relu1(output)
 
@@ -151,4 +107,6 @@ class SimpleNet(nn.Module):
             return F.interpolate(output, size=out_shape, mode='bilinear', align_corners=True)
         else:
             return output.permute(0, 2, 3, 1)
-    # a
+
+      input = torch.rand((512, 1024))
+

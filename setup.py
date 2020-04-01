@@ -8,5 +8,5 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     license='LICENSE',
-    long_description=open('README.md').read(),
+    long_description=open('README.md').read(), install_requires=['torch', 'tensorboardX']
 )

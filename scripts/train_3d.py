@@ -3,14 +3,16 @@ from torch import optim, cuda, nn
 from time import time
 import gc
 import cv2
-import torchvision.models as models
+import torchvision
+from torchvision.models import resnet18
 from hmdscollagen.training.models import SimpleNet
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from hmdscollagen.training.models import Net
 from collagen.strategies import Strategy
-from collagen.modelzoo.segmentation import EncoderDecoder
+
+
+#from collagen.modelzoo.segmentation import EncoderDecoder
 from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
     init_loss, parse_grayscale, init_model
 
@@ -44,10 +46,11 @@ if __name__ == "__main__":
         # Initialize data provider
         data_provider = create_data_provider(args, config, parse_grayscale, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
-        model2 = EncoderDecoder(**config['model']).to(device)
+        #model2 = EncoderDecoder(**config['model']).to(device)
         #model = Net(**config['model']).to(device)
         #model = init_model(config['model_selection'])
         model = SimpleNet().to(device)
+        #model = torchvision.models.resnet18(pretrained=True)
 
 
         # Optimizer
