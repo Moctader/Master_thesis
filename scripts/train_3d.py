@@ -53,6 +53,7 @@ if __name__ == "__main__":
         #model = torchvision.models.resnet18(pretrained=True)
 
 
+
         # Optimizer
         network=model
         optimizer = optim.Adam(model.parameters(),
