@@ -42,14 +42,14 @@ data_sampling:
     data_provider:
       bfpn_train:
         cate: ItemLoader
-        num_samples: 1
+        num_samples: 3
         data_key: "data"
         target_key: "target"
   eval:
     data_provider:
       bfpn_val:
         cate: ItemLoader
-        num_samples: 1
+        num_samples: 3
         data_key: "data"
         target_key: "target"
 

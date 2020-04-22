@@ -10,15 +10,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from collagen.strategies import Strategy
-
+torch.cuda.is_available()
 
 #from collagen.modelzoo.segmentation import EncoderDecoder
 from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
     init_loss, parse_grayscale, init_model
 
 from hmdscollagen.data.splits import build_splits
-
-
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
@@ -51,8 +49,6 @@ if __name__ == "__main__":
         #model = init_model(config['model_selection'])
         model = SimpleNet().to(device)
         #model = torchvision.models.resnet18(pretrained=True)
-
-
 
         # Optimizer
         network=model

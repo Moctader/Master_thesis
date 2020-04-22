@@ -33,6 +33,7 @@ from collagen.callbacks.logging import ImageMaskVisualizer
 from collagen.callbacks.lr_scheduling import SimpleLRScheduler
 from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
 from hmdscollagen.data.transforms import train_test_transforms, estimate_mean_std
+#from hmdscollagen.training.models import SimpleNet
 from hmdscollagen.training.models import SimpleNet
 #from splits import metadata
 from functools import partial
@@ -48,8 +49,8 @@ def init_experiment(experiment='2D'):
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--model_unet', type=bool, default=False)
     parser.add_argument('--num_threads', type=int, default=16)  # parallel processing
-    parser.add_argument('--bs', type=int, default=5)  # images per batch (batch size)
-    parser.add_argument('--n_epochs', type=int, default=100)  # iteration for training
+    parser.add_argument('--bs', type=int, default=13)  # images per batch (batch size)
+    parser.add_argument('--n_epochs', type=int, default=1)  # iteration for training
 
     args = parser.parse_args()
 
@@ -99,7 +100,7 @@ def init_callbacks(fold_id, config, snapshots_dir, snapshot_name, model, optimiz
                  )
 
     val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
-               ImageMaskVisualizer(writer, log_dir=str(log_dir), comment='visualize', mean=mean, std=std),
+              # ImageMaskVisualizer(writer, log_dir=str(log_dir), comment='visualize', mean=mean, std=std),
                ModelSaver(metric_names='eval/loss',
                           prefix=prefix,
                           save_dir=str(current_snapshot_dir),
@@ -124,15 +125,7 @@ def init_callbacks(fold_id, config, snapshots_dir, snapshot_name, model, optimiz
 
 def init_loss(config, device='cuda'):
     # TODO new loss function: This could be MSE, L1 or Wing loss
-    """
-    output=net(input)
-    target=torch.rand(10)
-    target=target.view(1, -1)
-    criterion=nn.MSELoss()
-    loss=criterion (output, target)
-    print(loss)
 
-    """
     if config['training']['loss'] == 'bce':
         return BCEWithLogitsLoss2d().to(device)
     elif config['training']['loss'] == 'mse':

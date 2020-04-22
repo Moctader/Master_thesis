@@ -11,11 +11,12 @@ import glob
 import os
 from glob import glob
 
+
 def build_meta_from_files(base_path, phase='train'):
     # Path to images
     if phase == 'train':
         masks_loc = pathlib.Path(base_path) / 'plm'
-        images_loc = pathlib.Path(base_path) / 'hmds'
+        images_loc = pathlib.Path(base_path) / 'hmds_resampled'
         # images_loc = base_path / 'images'
     else:
         masks_loc = base_path / 'predictions_test'

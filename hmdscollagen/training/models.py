@@ -1,12 +1,10 @@
-
-
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch
 
 # List all the models here
 
-
+'''
 class SimpleCNN(torch.nn.Module):
 
     # Our batch shape for input x is (3, 32, 32)
@@ -45,8 +43,8 @@ class SimpleCNN(torch.nn.Module):
         # Size changes from (1, 64) to (1, 10)
         x = self.fc2(x)
         return (x)
-
-
+    '''
+"""
 import torch
 import torch.nn as nn
 from torch.nn import Linear, ReLU, CrossEntropyLoss, Sequential, Conv2d, MaxPool2d, Module, Softmax, BatchNorm2d, Dropout
@@ -98,11 +96,9 @@ class SimpleNet(nn.Module):
         output = F.interpolate(output, scale_factor=2, mode='bilinear', align_corners=True)  # Could be 'bilinear'
 
         output = self.final_layer(output)
+        # output = output.view(-1, 16 * 16 * 24)
 
-
-        #output = output.view(-1, 16 * 16 * 24)
-
-        #output = self.fc(output)
+        # output = self.fc(output)
         if out_shape is not None:
             return F.interpolate(output, size=out_shape, mode='bilinear', align_corners=True)
         else:
@@ -110,3 +106,153 @@ class SimpleNet(nn.Module):
 
       input = torch.rand((512, 1024))
 
+"""
+
+import torch
+import torch.nn as nn
+from torch.nn import Linear, ReLU, CrossEntropyLoss, Sequential, Conv2d, MaxPool2d, Module, Softmax, BatchNorm2d, \
+    Dropout
+
+
+class SimpleNet(nn.Module):
+    def __init__(self,
+                 num_classes=10,
+                 final_channels=3):
+
+        super(SimpleNet, self).__init__()
+
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=12, kernel_size=3, stride=1, padding=1)
+        self.relu1 = nn.ReLU()
+
+        self.conv2 = nn.Conv2d(in_channels=12, out_channels=12, kernel_size=3, stride=1, padding=1)
+        self.relu2 = nn.ReLU()
+
+        self.pool = nn.MaxPool2d(kernel_size=2)
+
+        self.conv3 = nn.Conv2d(in_channels=12, out_channels=24, kernel_size=3, stride=1, padding=1)
+        self.relu3 = nn.ReLU()
+
+        self.conv4 = nn.Conv2d(in_channels=24, out_channels=24, kernel_size=3, stride=1, padding=1)
+        self.relu4 = nn.ReLU()
+
+        self.final_layer = nn.Conv2d(in_channels=24, out_channels=final_channels, kernel_size=3, stride=1, padding=1)
+
+        self.fc = nn.Linear(in_features=16 * 16 * 24, out_features=num_classes)
+
+    def forward(self, input, out_shape=None):
+
+        output = self.conv1(input)
+        output = self.relu1(output)
+
+        output = self.conv2(output)
+        output = self.relu2(output)
+
+        output = self.pool(output)  # Max pooling
+
+        output = self.conv3(output)
+        output = self.relu3(output)
+
+        output = self.conv4(output)
+        output = self.relu4(output)
+
+        output = F.interpolate(output, scale_factor=2, mode='bicubic', align_corners=True)  # Could be 'bilinear'
+
+        output = self.final_layer(output)
+
+        # output = output.view(-1, 16 * 16 * 24)
+
+        # output = self.fc(output)
+        if out_shape is not None:
+            return F.interpolate(output, size=out_shape, mode='bicubic', align_corners=True)
+        else:
+            return output.permute(0, 2, 3, 1)
+
+
+"""
+
+class Net(nn.Module):
+  def __init__(self,
+               num_classes=10,
+               final_channels=3):
+    super(Net, self).__init__()
+    self.conv1 = nn.Conv2d(in_channels=3, out_channels=12, kernel_size=3, stride=1, padding=1)
+    self.relu1 = nn.ReLU()
+
+    self.conv2 = nn.Conv2d(in_channels=12, out_channels=12, kernel_size=3, stride=1, padding=1)
+    self.relu2 = nn.ReLU()
+
+    self.pool = nn.MaxPool2d(kernel_size=2)
+
+    self.conv3 = nn.Conv2d(in_channels=12, out_channels=24, kernel_size=3, stride=1, padding=1)
+    self.relu3 = nn.ReLU()
+
+    self.conv4 = nn.Conv2d(in_channels=24, out_channels=24, kernel_size=3, stride=1, padding=1)
+    self.relu4 = nn.ReLU()
+
+    self.final_layer = nn.Conv2d(in_channels=24, out_channels=final_channels, kernel_size=3, stride=1, padding=1)
+
+    self.fc = nn.Linear(in_features=16 * 16 * 24, out_features=num_classes)
+
+  def forward(self, x, out_shape=None):
+    x = F.relu(F.max_pool2d(self.conv1(x), 2))
+    x = F.relu(F.max_pool2d(self.conv2(self.conv2(x)), 2))
+    x = x.view(x.size(0), -1)  # Flatten layer
+    x = F.dropout(x, training=self.training)
+    if out_shape is not None:
+      return F.interpolate(x, size=out_shape, mode='bilinear', align_corners=True)
+    else:
+      return x.permute(0, 2, 3, 1)
+
+
+
+import torch
+import torch.nn as nn
+from torch.nn import Linear, ReLU, CrossEntropyLoss, Sequential, Conv2d, MaxPool2d, Module, Softmax, BatchNorm2d, Dropout
+
+class SimpleNet(nn.Module):
+      def __init__(self,
+                 num_classes=10,
+                 final_channels=3):
+
+        super(SimpleNet, self).__init__()
+
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=12, kernel_size=3, stride=1, padding=1)
+        self.relu1 = nn.ReLU()
+
+        self.conv2 = nn.Conv2d(in_channels=12, out_channels=12, kernel_size=3, stride=1, padding=1)
+        self.relu2 = nn.ReLU()
+
+        self.pool = nn.MaxPool2d(kernel_size=2)
+
+        self.conv3 = nn.Conv2d(in_channels=24, out_channels=24, kernel_size=3, stride=1, padding=1)
+        self.relu3 = nn.ReLU()
+
+        self.final_layer = nn.Conv2d(in_channels=24, out_channels=final_channels, kernel_size=3, stride=1, padding=1)
+
+        self.fc = nn.Linear(in_features=16 * 16 * 24, out_features=num_classes)
+
+      def forward(self, output, out_shape=None):
+
+        output = self.conv1(output)
+        output = self.relu1(output)
+
+        output = self.conv2(output)
+        output = self.relu2(output)
+
+        output = self.pool(output)  # Max pooling
+
+        output = self.conv3(output)
+        output = self.relu3(output)
+
+        output = F.interpolate(output, scale_factor=2, mode='bilinear', align_corners=True)  # Could be 'bilinear'
+
+        output = self.final_layer(output)
+
+        # output = output.view(-1, 16 * 16 * 24)
+
+        # output = self.fc(output)
+        if out_shape is not None:
+            return F.interpolate(output, size=out_shape, mode='bilinear', align_corners=True)
+        else:
+            return output.permute(0, 2, 3, 1)
+"""
