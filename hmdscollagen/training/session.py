@@ -259,3 +259,4 @@ def save_transforms(path, config, args, mean, std):
     with open(path / 'transforms.json', 'w') as f:
         f.writelines(json.dumps(transforms['train_list'][1].serialize(), indent=4))
 
+d
