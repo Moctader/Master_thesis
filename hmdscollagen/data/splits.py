@@ -1,6 +1,7 @@
 from lib2to3.pytree import convert
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 import pandas as pd
 import pathlib
 import torch
@@ -15,8 +16,9 @@ from glob import glob
 def build_meta_from_files(base_path, phase='train'):
     # Path to images
     if phase == 'train':
-        masks_loc = pathlib.Path(base_path) / 'plm'
         images_loc = pathlib.Path(base_path) / 'hmds_resampled'
+        masks_loc = pathlib.Path(base_path) / 'Collagen_train_resampled' # 'plm'
+        #masks_loc = pathlib.Path(base_path) / 'plm'
         # images_loc = base_path / 'images'
     else:
         masks_loc = base_path / 'predictions_test'
@@ -24,7 +26,7 @@ def build_meta_from_files(base_path, phase='train'):
 
 
         # List files
-    images = set(map(lambda x: x.stem, images_loc.glob('**/*[0-9].[pb][nm][gp]')))  # HMDS images
+    #images = set(map(lambda x: x.stem, images_loc.glob('**/*[0-9].[pb][nm][gp]')))  # HMDS images
     #masks = set(map(lambda x: x.stem, masks_loc.glob('*a.mat.png')))
     #masks = set(map(lambda x: x.stem, masks_loc.glob('*.png')))
     # l = [masks]*300
@@ -39,31 +41,27 @@ def build_meta_from_files(base_path, phase='train'):
 
     # res = masks.intersection(images)
 
-    # masks = list(map(lambda x: pathlib.Path(x).with_suffix('.png'), masks))
+    #masks = list(map(lambda x: pathlib.Path(x).with_suffix('.png'), masks))
     images = list(map(lambda x: pathlib.Path(x.name), images_loc.glob('**/*[0-9].[pb][nm][gp]')))
-    masks = list(map(lambda x: pathlib.Path(x.name), masks_loc.glob('*.png')))
+    masks = list(map(lambda x: pathlib.Path(x.name), masks_loc.glob('**/*[0-9].[pb][nm][gp]')))
+    #masks = list(map(lambda x: pathlib.Path(x.name), masks_loc.glob('*.png')))
     images.sort()
     masks.sort()
+   # plt.imshow(images[1])
+   # plt.show()
 
     # Repeat the PLM images 300 times
-    masks_repeat = []
-    for i in range(len(masks)):
-        hmds_images = glob(str(images_loc) + '/*' + str(masks[i])[:-9] + '/*.png', recursive=True)
-        if '6061-12La.mat.png' in str(masks[i]):
-            masks_repeat.extend(list(np.repeat(masks[i], len(hmds_images))))
-        elif 'a.mat.png' in str(masks[i]):
-            masks_repeat.extend(list(np.repeat(masks[i], len(hmds_images) // 2)))
-        elif 'b.mat.png' in str(masks[i]):
-            masks_repeat.extend(list(np.repeat(masks[i], len(hmds_images) // 2 + len(hmds_images) % 2)))
-        else:
-            raise Exception('Wrong file name for the PLM image')
+
 
     #assert len(res), len(masks)
     d_frame = {'fname': [], 'mask_fname': []}
     # Making dataframe
     #[d_frame['fname'].append((images_loc / str(img_name)[:7].rsplit('_', 1)[0] / img_name)) for img_name in images]
     [d_frame['fname'].append((images_loc / str(img_name)[:8].rsplit('_', 1)[0] / img_name)) for img_name in images]
-    [d_frame['mask_fname'].append(masks_loc / img_name) for img_name in masks_repeat]
+    [d_frame['mask_fname'].append((masks_loc / str(img_name)[:8].rsplit('_', 1)[0] / img_name)) for img_name in masks]
+
+    #[d_frame['mask_fname'].append(masks_loc / img_name) for img_name in masks]
+    #[d_frame['mask_fname'].append(masks_loc / img_name) for img_name in masks_repeat]
 
     metadata = pd.DataFrame(data=d_frame)
 

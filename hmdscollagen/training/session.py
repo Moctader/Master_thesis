@@ -16,6 +16,7 @@ import torch
 #import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
+#from HMDS_collagen.hmdscollagen.data import transforms
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -34,7 +35,8 @@ from collagen.callbacks.lr_scheduling import SimpleLRScheduler
 from collagen.losses.segmentation import CombinedLoss, BCEWithLogitsLoss2d, SoftJaccardLoss
 from hmdscollagen.data.transforms import train_test_transforms, estimate_mean_std
 #from hmdscollagen.training.models import SimpleNet
-from hmdscollagen.training.models import SimpleNet
+from hmdscollagen.training.net import ReconNet
+from scipy import ndimage, misc
 #from splits import metadata
 from functools import partial
 
@@ -48,8 +50,8 @@ def init_experiment(experiment='2D'):
     parser.add_argument('--data_dir', default="/data/Repositories/HMDS_orientation/Data/train_rotated")
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--model_unet', type=bool, default=False)
-    parser.add_argument('--num_threads', type=int, default=16)  # parallel processing
-    parser.add_argument('--bs', type=int, default=13)  # images per batch (batch size)
+    parser.add_argument('--num_threads', type=int, default=2)  # parallel processing
+    parser.add_argument('--bs', type=int, default=32)  # images per batch (batch size)
     parser.add_argument('--n_epochs', type=int, default=1)  # iteration for training
 
     args = parser.parse_args()
@@ -106,12 +108,12 @@ def init_callbacks(fold_id, config, snapshots_dir, snapshot_name, model, optimiz
                           save_dir=str(current_snapshot_dir),
                           conditions='min', model=model),
 
-               ItemWiseBinaryJaccardDiceMeter(prefix="eval", name='jaccard',
-                                              parse_output=partial(parse_binary_label, threshold=threshold),
-                                              parse_target=lambda x: x.squeeze().to(device)),
-               ItemWiseBinaryJaccardDiceMeter(prefix="eval", name='dice',
-                                              parse_output=partial(parse_binary_label, threshold=threshold),
-                                              parse_target=lambda x: x.squeeze().to(device)),
+               #ItemWiseBinaryJaccardDiceMeter(prefix="eval",  name='jaccard',
+                                           #   parse_output=partial(parse_binary_label, threshold=threshold),
+                                            #  parse_target=lambda x: x.squeeze().to(device)),
+              # ItemWiseBinaryJaccardDiceMeter(prefix="eval",  name='dice',
+                                             # parse_output=partial(parse_binary_label, threshold=threshold),
+                                              #parse_target=lambda x: x.squeeze().to(device)),
 
                # Reduce LR on plateau
                SimpleLRScheduler('eval/loss', ReduceLROnPlateau(optimizer,
@@ -139,9 +141,9 @@ def init_loss(config, device='cuda'):
         raise Exception('No compatible loss selected in experiment_config.yml! Set training->loss accordingly.')
 
 
-def init_model(model_selection='SimpleNet'):
-    if model_selection == 'SimpleNet':
-        model = SimpleNet()
+def init_model(model_selection='ReconNet'):
+    if model_selection == 'ReconNet':
+        model = ReconNet()
     else:
         raise Exception('Model not implemented!')
     return model
@@ -152,8 +154,7 @@ def create_data_provider(args, config, parser, metadata, mean, std):
     item_loaders = dict()
     for stage in ['train', 'val']:
         item_loaders[f'bfpn_{stage}'] = ItemLoader(meta_data=metadata[stage],
-                                                   transform=train_test_transforms(config, mean, std,
-                                                   crop_size=tuple(config['training']['crop_size']))[stage],
+                                                   transform=train_test_transforms(config, mean, std)[stage],
                                                    parse_item_cb=parser,
                                                    batch_size=args.bs, num_workers=args.num_threads,
                                                    shuffle=True if stage == "train" else False)
@@ -202,10 +203,83 @@ def parse_color_im(root, entry, transform, data_key, target_key):
     # and scaled to 0-1 range
     return {data_key: img, target_key: mask}
 
+def parse_grayscale(root, entry, transform, data_key, target_key, mean=False):
+    # TODO make sure that this is working
+    # Image and mask generation
+    img = cv2.imread(str(entry.fname))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img[:, :, 1] = img[:, :, 0]
+    img[:, :, 2] = img[:, :, 0]
+    #plt.imshow(img[:,:,0])
+    #plt.show()
+
+    mask = cv2.imread(str(entry.mask_fname))
+    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
+    mask[:, :, 1] = mask[:, :, 0]
+    mask[:, :, 2] = mask[:, :, 0]
+
+    #plt.imshow(mask[1, :, :])
+    #plt.show()
+
+    if img.shape[0] != mask.shape[0]:
+        img = cv2.resize(img, (mask.shape[1], mask.shape[0]))
+    elif img.shape[1] != mask.shape[1]:
+        mask = mask[:, :img.shape[1]]
+
+    img, mask = transform((img, mask))
+    img = img[:, :, 0]
+    img = np.expand_dims(img, 1)
+    img = np.transpose(img, (1,2, 0))
+
+    mask = mask[:, :, 0] / 90.
+    mask = np.expand_dims(mask, 1)
+    mask = np.transpose(mask, (1,2, 0))
+    return {data_key: img, target_key: mask}
+
+    #img = img.permute(2, 0, 1)# / 255.  # img.shape[0] is the color channel after permute
+    #mask = mask.permute(2, 0, 1)
+    #mask = ndimage.zoom(mask, 1.0)
+    #img = ndimage.zoom(img, 1.0)
+
+   # plt.imshow(mask[0,:])
+    #plt.show()
+
+    #plt.imshow(img[0,:])
+    #plt.show()
+
+
+    # Debugging
+    #plt.imshow(np.asarray(img).transpose((1, 2, 0)))
+    #plt.imshow(np.asarray(mask).squeeze(), alpha=0.3)
+    #plt.show()
+    
+    # Calculate mean profile
+'''
+    if mean:
+        mean_mask = np.mean(mask.numpy(), axis=2)
+        mean_mask = np.expand_dims(mean_mask, 1)
+        mean_mask = ndimage.zoom(mean_mask, 1.0)
+        mean_mask = torch.Tensor(mean_mask)
+        mask = mean_mask
+
+
+        mean_img = np.mean(img.numpy(), axis=2)
+        mean_img = np.expand_dims(mean_img, 1)
+        mean_img = ndimage.zoom(mean_img, 1.0)
+        mean_img = torch.Tensor(mean_img)
+        img = mean_img
+
+        #plt.plot(mean_img[0,:])
+        #plt.show()
+
+    # Images are in the format 3xHxW
+    # and scaled to 0-1 range
+    return {data_key: img, target_key: mask}
 
 def parse_grayscale(root, entry, transform, data_key, target_key):
     # TODO make sure that this is working
     # Image and mask generation
+
     img = cv2.imread(str(entry.fname))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img[:, :, 1] = img[:, :, 0]
@@ -213,18 +287,19 @@ def parse_grayscale(root, entry, transform, data_key, target_key):
     # mask = cv2.imread(str(entry.mask_fname), 0) / 255.
     mask = cv2.imread(str(entry.mask_fname))
     mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
+   # plt.imshow(mask)
+    #plt.show()
     mask[:, :, 1] = mask[:, :, 0]
     mask[:, :, 2] = mask[:, :, 0]
-
 
     if img.shape[0] != mask.shape[0]:
         img = cv2.resize(img, (mask.shape[1], mask.shape[0]))
     elif img.shape[1] != mask.shape[1]:
         mask = mask[:, :img.shape[1]]
 
-
     img, mask = transform((img, mask))
-    img = img.permute(2, 0, 1) / 255.  # img.shape[0] is the color channel after permute
+   # img = img.permute(2, 0, 1) / 255.  # img.shape[0] is the color channel after permute
+   # mask = mask.permute(2, 0, 1)
 
     # Debugging
     #plt.imshow(np.asarray(img).transpose((1, 2, 0)))
@@ -235,28 +310,29 @@ def parse_grayscale(root, entry, transform, data_key, target_key):
     # and scaled to 0-1 range
     return {data_key: img, target_key: mask}
 
-
-def save_config(path, config, args):
+'''
+def save_config(path, config, args, model):
     """
     Alternate way to save model parameters.
     """
-    with open(path + '/experiment_config.txt', 'w') as f:
+    with open(path / 'experiment_config.txt', 'w') as f:
         f.write(f'\nArguments file:\n')
         f.write(f'Seed: {args.seed}\n')
         f.write(f'Batch size: {args.bs}\n')
         f.write(f'N_epochs: {args.n_epochs}\n')
 
+        FILE='model.pth'
+        torch.save(model.state_dict(), FILE)
         f.write('Configuration file:\n\n')
         for key, val in config.items():
             f.write(f'{key}\n')
-            for key2 in config[key].items():
-                f.write(f'\t{key2}\n')
+        #    for key2 in config[key].items():
+         #       f.write(f'\t{key2}\n')
 
 
 def save_transforms(path, config, args, mean, std):
-    transforms = train_test_transforms(config, mean, std, crop_size=tuple(config['training']['crop_size']))
+    transforms = train_test_transforms(config, mean, std)
     # Save the experiment parameters
     with open(path / 'transforms.json', 'w') as f:
         f.writelines(json.dumps(transforms['train_list'][1].serialize(), indent=4))
 
-d

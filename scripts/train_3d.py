@@ -1,4 +1,6 @@
 import numpy as np
+import pathlib
+import os.path
 from torch import optim, cuda, nn
 from time import time
 import gc
@@ -6,15 +8,17 @@ import cv2
 import torchvision
 from torchvision.models import resnet18
 from hmdscollagen.training.models import SimpleNet
+from hmdscollagen.training.net import ReconNet
+from hmdscollagen.training.SimpleConvNet import SimpleConvNet
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from collagen.strategies import Strategy
 torch.cuda.is_available()
-
+from scipy import ndimage, misc
 #from collagen.modelzoo.segmentation import EncoderDecoder
 from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
-    init_loss, parse_grayscale, init_model
+    init_loss, parse_grayscale, init_model, save_config
 
 from hmdscollagen.data.splits import build_splits
 
@@ -38,20 +42,21 @@ if __name__ == "__main__":
     # Save transforms list
     save_transforms(snapshots_dir / snapshot_name, config, args, mean, std)
 
+
     # Training for separate folds
     for fold in range(config['training']['n_folds']):
         print(f'\nTraining fold {fold}')
         # Initialize data provider
         data_provider = create_data_provider(args, config, parse_grayscale, metadata=splits_metadata[f'fold_{fold}'],
                                              mean=mean, std=std)
-        #model2 = EncoderDecoder(**config['model']).to(device)
-        #model = Net(**config['model']).to(device)
+        #model= EncoderDecoder(**config['model']).to(device)
+        #model = ReconNet(**config['model']).to(device)
         #model = init_model(config['model_selection'])
-        model = SimpleNet().to(device)
         #model = torchvision.models.resnet18(pretrained=True)
+        #model = SimpleConvNet().to(device)
+        model = SimpleNet().to(device)
 
         # Optimizer
-        network=model
         optimizer = optim.Adam(model.parameters(),
                                lr=config['training']['lr'],
                                weight_decay=config['training']['wd'])
@@ -71,8 +76,16 @@ if __name__ == "__main__":
                             val_callbacks=val_cbs,
                             device=device)
         strategy.run()
-        # Manage memory
+        #save_config(snapshots_dir / snapshot_name, config, args, model)
+        #Manage memory
         del strategy
+
+
+        #os.chdir('/data/Repositories/HMDS_collagen/workdir/snapshots/mipt-stud-dl-b_2020_02_18_11_06_55/')
+        #FILE='model.pth'
+        #Save_model=torch.save(model.state_dict(), FILE)
+        #savepath = '/data/Repositories/HMDS_collagen/workdir/snapshots/'
+        #save=os.path.join(str(savepath, Save_model)
         del model
         cuda.empty_cache()
         gc.collect()

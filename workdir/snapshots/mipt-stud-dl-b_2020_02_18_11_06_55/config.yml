@@ -18,9 +18,9 @@ model:
   bayesian_dropout: 0.5
   decoder: FPN
   decoder_normalization: IN
-  n_outputs: 1
+  n_outputs: 3
   spatial_dropout: 0.1
-model_selection: simpleCNN
+model_selection: SimpleNet
 training:
   brightness_range:
   - 5

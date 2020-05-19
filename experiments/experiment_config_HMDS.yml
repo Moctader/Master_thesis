@@ -4,7 +4,7 @@ training:
   wd: 0.0001 # weight decay
   lr: 0.0001 # learning rate
   n_folds: 5 # number of cross-validation splits
-  crop_size: [512, 1024] # image size
+  crop_size: [64, 128] # image size
   uCT: True # Use 3D parameters
   calc_meanstd: False # Calculate mean and std of data
   # Loss parameters: possible losses are "bce", "jaccard" and "combined"
@@ -32,10 +32,10 @@ training:
 model_selection: "SimpleNet"
 model:
   decoder_normalization: IN
-  n_outputs: 1
+  n_outputs: 3
   spatial_dropout: 0.1
   bayesian_dropout: 0.5
-  backbone: resnet50
+  backbone: resnet18
   decoder: FPN
 data_sampling:
   train:

@@ -9,9 +9,9 @@ from scipy.ndimage import zoom
 if __name__ == "__main__":
     # Initialize experiment
     args, config, device, snapshots_dir, snapshot_name = init_experiment()
-    base_path = Path('/data/Repositories/HMDS_orientation/Data/train_rotated/')
-    images_loc = base_path / 'hmds'
-    images_save = base_path / 'hmds_resampled'
+    base_path = Path('/data/Repositories/HMDS_orientation/Data/collagen_orientation_rotated/')
+    images_loc = base_path / 'Collagen_rotated_train'
+    images_save = base_path / 'Collagen_train_resampled'
 
     subdir = 'Manual segmentation'
     images_save.mkdir(exist_ok=True)

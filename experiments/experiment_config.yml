@@ -3,7 +3,7 @@ training:
   wd: 0.0001
   lr: 0.0001
   n_folds: 5
-  crop_size: [512, 1024]
+  crop_size: [128, 256]
   uCT: False
   calc_meanstd: True
   parse_color: False
@@ -31,7 +31,7 @@ training:
   eps: 1e-7
 model:
   decoder_normalization: IN
-  n_outputs: 1
+  n_outputs: 3
   spatial_dropout: 0.1
   backbone: resnet50
   decoder: FPN

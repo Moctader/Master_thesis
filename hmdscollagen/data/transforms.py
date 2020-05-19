@@ -37,8 +37,12 @@ def normalize_channel_wise(tensor: torch.Tensor, mean: torch.Tensor, std: torch.
     """
     # Modified shape
     for channel in range(tensor.size(2)):
-        tensor[:, :, channel] -= mean[channel]
-        tensor[:, :, channel] /= std[channel]
+        if len(mean) == 1:
+            tensor[:, :, channel] -= mean
+            tensor[:, :, channel] /= std
+        else:
+            tensor[:, :, channel] -= mean[channel]
+            tensor[:, :, channel] /= std[channel]
 
     return tensor
 
@@ -77,9 +81,10 @@ def unwrap_solt(dc):
     return dc.data
 
 
-def train_test_transforms(conf, mean=None, std=None, crop_size=(512, 1024)):
+def train_test_transforms(conf, mean=None, std=None):
     trf = conf['training']
     prob = trf['transform_probability']
+    crop_size = tuple(trf['crop_size'])
     # Training transforms
     if trf['uCT']:
         train_transforms = [
