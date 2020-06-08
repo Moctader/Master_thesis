@@ -47,12 +47,12 @@ def init_experiment(experiment='2D'):
     parser.add_argument('--data_location', type=pathlib.Path, default='/data/Repositories/HMDS_orientation/Data/train_rotated/')
     parser.add_argument('--workdir', type=pathlib.Path, default='/data/Repositories/HMDS_collagen/workdir/')
     parser.add_argument('--experiment', default='/data/Repositories/HMDS_collagen/experiments/experiment_config_HMDS.yml')
-    parser.add_argument('--data_dir', default="/data/Repositories/HMDS_orientation/Data/train_rotated")
+    parser.add_argument('--data_dir', default="/data/Repositories/HMDS_orientation/Data/train_rotated/New_threshold/")
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--model_unet', type=bool, default=False)
-    parser.add_argument('--num_threads', type=int, default=2)  # parallel processing
-    parser.add_argument('--bs', type=int, default=32)  # images per batch (batch size)
-    parser.add_argument('--n_epochs', type=int, default=1)  # iteration for training
+    parser.add_argument('--num_threads', type=int, default=25)  # parallel processing
+    parser.add_argument('--bs', type=int, default=100)  # images per batch (batch size)
+    parser.add_argument('--n_epochs', type=int, default=20)  # iteration for training
 
     args = parser.parse_args()
 
@@ -102,7 +102,7 @@ def init_callbacks(fold_id, config, snapshots_dir, snapshot_name, model, optimiz
                  )
 
     val_cbs = (RunningAverageMeter(prefix="eval", name="loss"),
-              # ImageMaskVisualizer(writer, log_dir=str(log_dir), comment='visualize', mean=mean, std=std),
+               ImageMaskVisualizer(writer, log_dir=str(log_dir), comment='visualize', mean=mean, std=std),
                ModelSaver(metric_names='eval/loss',
                           prefix=prefix,
                           save_dir=str(current_snapshot_dir),
@@ -206,20 +206,20 @@ def parse_color_im(root, entry, transform, data_key, target_key):
 def parse_grayscale(root, entry, transform, data_key, target_key, mean=False):
     # TODO make sure that this is working
     # Image and mask generation
-    img = cv2.imread(str(entry.fname))
+    img = cv2.imread(str(entry.fname))[:-300, :]
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img[:, :, 1] = img[:, :, 0]
     img[:, :, 2] = img[:, :, 0]
-    #plt.imshow(img[:,:,0])
-    #plt.show()
+   # plt.imshow(img[:,:,0])
+   # plt.show()
 
-    mask = cv2.imread(str(entry.mask_fname))
+    mask = cv2.imread(str(entry.mask_fname))[:-300, :]
     mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
     mask[:, :, 1] = mask[:, :, 0]
     mask[:, :, 2] = mask[:, :, 0]
 
-    #plt.imshow(mask[1, :, :])
-    #plt.show()
+   # plt.imshow(mask[:, :, 0])
+   # plt.show()
 
     if img.shape[0] != mask.shape[0]:
         img = cv2.resize(img, (mask.shape[1], mask.shape[0]))
@@ -231,7 +231,7 @@ def parse_grayscale(root, entry, transform, data_key, target_key, mean=False):
     img = np.expand_dims(img, 1)
     img = np.transpose(img, (1,2, 0))
 
-    mask = mask[:, :, 0] / 90.
+    mask = mask[:, :, 0]/90.
     mask = np.expand_dims(mask, 1)
     mask = np.transpose(mask, (1,2, 0))
     return {data_key: img, target_key: mask}

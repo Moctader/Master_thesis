@@ -16,8 +16,8 @@ from glob import glob
 def build_meta_from_files(base_path, phase='train'):
     # Path to images
     if phase == 'train':
-        images_loc = pathlib.Path(base_path) / 'hmds_resampled'
-        masks_loc = pathlib.Path(base_path) / 'Collagen_train_resampled' # 'plm'
+        images_loc = pathlib.Path(base_path) / 'hmds'
+        masks_loc = pathlib.Path(base_path) / 'Collagen_rotated' # 'plm'
         #masks_loc = pathlib.Path(base_path) / 'plm'
         # images_loc = base_path / 'images'
     else:

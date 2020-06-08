@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import math
 from torch.nn import init
-
+import torch.nn.functional as F
 
 # 2D Conv
 def conv1x1(in_planes, out_planes, stride=1):
@@ -224,7 +224,7 @@ class ReconNet(nn.Module):
         self.deconv_layer2 = _make_layers(128, 64, 'deconv4x4_s2', '3d', 'relu')
         self.deconv_layer1 = _make_layers(64, 64, 'deconv3x3_s1', '3d', 'relu')
         self.deconv_layer0 = _make_layers(64, 1, 'conv1x1_s1', False, 'relu')
-        self.output_layer = _make_layers(1, out_planes, 'conv1_s1', False)
+        self.output_layer = _make_layers(64, out_planes, 'conv1_s1', False)
 
         if init_type == 'standard':
             _initialize_weights(self)
@@ -251,7 +251,8 @@ class ReconNet(nn.Module):
 
         ### transform module
         features = self.trans_layer1(relu10)
-        trans_features = features.view(-1,2048, 1, 2,128)
+
+        trans_features = features.view(4,2048,-1,1,2)
         trans_features = self.trans_layer2(trans_features)
 
         ### generation network
@@ -269,10 +270,7 @@ class ReconNet(nn.Module):
         out = self.deconv_layer0(deconv1)
         out = torch.squeeze(out, 1)
         out = self.output_layer(out)
-
+        #out = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=True)
         return out
 
 
-def reconnet(in_channels, out_channels, **kwargs):
-    model = ReconNet(in_channels, out_channels, **kwargs)
-    return model

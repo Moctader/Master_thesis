@@ -10,13 +10,14 @@ from torchvision.models import resnet18
 from hmdscollagen.training.models import SimpleNet
 from hmdscollagen.training.net import ReconNet
 from hmdscollagen.training.SimpleConvNet import SimpleConvNet
+#from hmdscollagen.training.New_model import UNet16
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from collagen.strategies import Strategy
 torch.cuda.is_available()
 from scipy import ndimage, misc
-#from collagen.modelzoo.segmentation import EncoderDecoder
+from collagen.modelzoo.segmentation import EncoderDecoder
 from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
     init_loss, parse_grayscale, init_model, save_config
 
@@ -24,7 +25,7 @@ from hmdscollagen.data.splits import build_splits
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
-
+torch.cuda.is_available()
 
 if __name__ == "__main__":
     # Timing
@@ -53,8 +54,8 @@ if __name__ == "__main__":
         #model = ReconNet(**config['model']).to(device)
         #model = init_model(config['model_selection'])
         #model = torchvision.models.resnet18(pretrained=True)
-        #model = SimpleConvNet().to(device)
-        model = SimpleNet().to(device)
+        model = SimpleConvNet().to(device)
+       # model = SimpleNet().to(device)
 
         # Optimizer
         optimizer = optim.Adam(model.parameters(),
@@ -76,7 +77,7 @@ if __name__ == "__main__":
                             val_callbacks=val_cbs,
                             device=device)
         strategy.run()
-        #save_config(snapshots_dir / snapshot_name, config, args, model)
+        save_config(snapshots_dir / snapshot_name, config, args, model)
         #Manage memory
         del strategy
 

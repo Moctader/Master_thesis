@@ -15,7 +15,8 @@ from time import sleep, time
 from tqdm import tqdm
 from glob import glob
 #from collagen.modelzoo.segmentation import EncoderDecoder
-from hmdscollagen.training.models import SimpleNet
+#from hmdscollagen.training.models import SimpleNet
+from hmdscollagen.training.SimpleConvNet import SimpleConvNet
 
 from collagen.core.utils import auto_detect_device
 
@@ -63,7 +64,7 @@ def inference(inference_model, img_full, device='cuda'):
     tiles = [tensor_from_rgb_image(tile) for tile in tiler.split(img_full)]
 
     # Allocate a CUDA buffer for holding entire mask
-    merger = CudaTileMerger(tiler.target_shape, channels=3, weight=tiler.weight)
+    merger = CudaTileMerger(tiler.target_shape, channels=1, weight=tiler.weight)
 
     # Run predictions for tiles and accumulate them
     for tiles_batch, coords_batch in DataLoader(list(zip(tiles, tiler.crops)), batch_size=args.bs, pin_memory=True):
@@ -106,18 +107,18 @@ if __name__ == "__main__":
     start = time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_root', type=Path, default='/data/Repositories/HMDS_orientation/Data/train_rotated/hmds_resampled/')
+    parser.add_argument('--dataset_root', type=Path, default='/data/Repositories/HMDS_orientation/Data/test/hmds_test_flip/')
     #parser.add_argument('--dataset_root', type=Path, default='/media/santeri/Transcend1/Full samples/')
     parser.add_argument('--save_dir', type=Path, default='/data/Repositories/HMDS_collagen/workdir/')
     parser.add_argument('--subdir', type=Path, choices=['NN_prediction', ''], default='')
     #parser.add_argument('--dataset_root', type=Path, default='../../../Data/µCT/images')
-    #parser.add_argument('--save_dir', type=Path, default='/media/dios/dios2/RabbitSegmentation/µCT/predictions_databank_12samples/')
-    parser.add_argument('--bs', type=int, default=12)
+    #parser.add_argument('--save_dir', type=Path, default='/data/Repositories/HMDS_collagen/workdir/')
+    parser.add_argument('--bs', type=int, default=300)
     parser.add_argument('--plot', type=bool, default=False)
     parser.add_argument('--weight', type=str, choices=['pyramid', 'mean'], default='mean')
     parser.add_argument('--completed', type=int, default=13)
     parser.add_argument('--snapshot', type=Path,
-                        default='/data/Repositories/HMDS_collagen/workdir/snapshots/mipt-stud-dl-b_2020_05_10_11_55_36/')
+                        default='/data/Repositories/HMDS_collagen/workdir/snapshots/mipt-stud-dl-b_2020_06_03_07_41_22/')
     parser.add_argument('--dtype', type=str, choices=['.bmp', '.png', '.tif'], default='.png')
     args = parser.parse_args()
     subdir = ''  # 'NN_prediction'
@@ -146,7 +147,7 @@ if __name__ == "__main__":
     model_list = []
     for fold in range(len(models)):
         #model = EncoderDecoder(**config['model'])
-        model = SimpleNet().to(device)
+        model = SimpleConvNet().to(device)
         model.load_state_dict(torch.load(models[fold]))
         model_list.append(model)
 
@@ -165,50 +166,30 @@ if __name__ == "__main__":
     # samples = [samples[id] for id in [7, 11]]  # Get intended samples from list
 
     # Skip the completed samples
-    if args.completed > 0:
-        samples = samples[args.completed:]
+   # if args.completed > 0:
+    #    samples = samples[args.completed:]
     for idx, sample in enumerate(samples):
         #try:
         print(f'==> Processing sample {idx + 1} of {len(samples)}: {sample}')
-
         # Load image stacks
         data_xz, files = load(str(args.dataset_root / sample), rgb=True)
-        data_xz = np.transpose(data_xz, (1, 0, 2, 3))  # X-Z-Y-Ch
-        data_yz = np.transpose(data_xz, (0, 2, 1, 3))  # Y-Z-X-Ch
+        data_xz = np.expand_dims(data_xz, axis=3)
         mask_xz = np.zeros(data_xz.shape)
-        mask_yz = np.zeros(data_yz.shape)
-        #mask_lz=(np.transpose(mask_yz, (0, 2, 1, 3))/2)
-
         # Loop for image slices
         # 1st orientation
         with torch.no_grad():  # Do not update gradients
             for slice_idx in tqdm(range(data_xz.shape[2]), desc='Running inference, XZ'):
-                mask_xz[:, :, slice_idx] = inference(model, data_xz[:, :, slice_idx, :])
-            # 2nd orientation
-            for slice_idx in tqdm(range(data_yz.shape[2]), desc='Running inference, YZ'):
-                mask_yz[:, :, slice_idx] = inference(model, data_yz[:, :, slice_idx, :])
-
-        # Average probability maps
-        #mask_final = ((mask_xz + np.transpose(mask_yz, (0, 2, 1))) / 2) >= threshold
-        mask_final = ((mask_xz + np.transpose(mask_yz, (0, 2, 1, 3))) / 2)*255
-        mask_xz = list()
-        mask_yz = list()
-        data_xz = list()
-
-        # Convert to original orientation
-        mask_final = np.transpose(mask_final, (0, 2, 1)).astype('uint8')#*255
-
+                mask_xz[:, :, slice_idx, 0] = inference(model, data_xz[:, :, slice_idx, :])
+        # float64 to uint16
+        mask_xz = mask_xz * 65535
+        mask_xz = mask_xz.astype(np.uint16)
         # Save predicted full mask
         if str(args.subdir) != '.':  # Save in original location
-            save(str(args.dataset_root / sample / subdir), files, mask_final, dtype=args.dtype)
+            save(str(args.dataset_root / sample / subdir), files, mask_xz, dtype=args.dtype)
         else:  # Save in new location
-            save(str(args.save_dir / sample), files, mask_final, dtype=args.dtype)
+            save(str(args.save_dir / sample), files, mask_xz, dtype=args.dtype)
 
-        render_volume(data_yz[:, :, :, 0] * mask_final,
-                      savepath=str(args.save_dir / 'visualizations' / (sample + '_render' + args.dtype)),
-                      white=True, use_outline=False)
-
-        print_orthogonal(data_yz[:, :, :, 0], mask=mask_final, invert=True, res=3.2, title=None, cbar=True,
+        print_orthogonal((mask_xz.squeeze()), invert=False, res=3.2, title=None, cbar=True,
                          savepath=str(args.save_dir / 'visualizations' / (sample + '_prediction.png')),
                          scale_factor=1000)
         #except Exception as e:

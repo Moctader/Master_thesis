@@ -22,12 +22,12 @@ class SimpleNet(nn.Module):
     self.conv3 = nn.Conv2d(in_channels=12, out_channels=24, kernel_size=3, stride=1, padding=1)
     self.relu3 = nn.ReLU()
 
-    self.conv4 = nn.Conv2d(in_channels=24, out_channels=3, kernel_size=3, stride=1, padding=1)
+    self.conv4 = nn.Conv2d(in_channels=24, out_channels=24, kernel_size=3, stride=1, padding=1)
     self.relu4 = nn.ReLU()
 
-    self.final_layer = nn.Conv2d(in_channels=3, out_channels=final_channels, kernel_size=3, stride=1, padding=1)
+    self.final_layer = nn.Conv2d(in_channels=24, out_channels=final_channels, kernel_size=3, stride=1, padding=1)
 
-    self.fc = nn.Linear(in_features=16 * 16 * 24, out_features=num_classes)
+    self.fc = nn.Linear(in_features=64 * 128 * 1, out_features=num_classes)
 
   def forward(self, input, out_shape=None):
 
@@ -37,7 +37,7 @@ class SimpleNet(nn.Module):
     output = self.conv2(output)
     output = self.relu2(output)
 
-   # output = self.pool(output)  # Max pooling
+    output = self.pool(output)  # Max pooling
 
     output = self.conv3(output)
     output = self.relu3(output)
@@ -45,13 +45,13 @@ class SimpleNet(nn.Module):
     output = self.conv4(output)
     output = self.relu4(output)
 
-    #output = F.interpolate(output, scale_factor=2, mode='bilinear', align_corners=True)  # Could be 'bilinear'
+    output = F.interpolate(output, scale_factor=2, mode='bilinear', align_corners=True)  # Could be 'bilinear'
 
     output = self.final_layer(output)
 
     # output = output.view(-1, 16 * 16 * 24)
 
-    # output = self.fc(output)
+   # output = self.fc(output)
     if out_shape is not None:
       return F.interpolate(output, size=out_shape, mode='bicubic', align_corners=True)
     else:

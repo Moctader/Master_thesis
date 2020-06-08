@@ -99,7 +99,7 @@ def read_image_gray(path, file):
     """Reads image from given path."""
     # Image
     f = os.path.join(path, file)
-    image = cv2.imread(f, cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread(f, -1)
     return image
 
 
@@ -107,7 +107,7 @@ def read_image_rgb(path, file):
     """Reads image from given path."""
     # Image
     f = os.path.join(path, file)
-    image = cv2.imread(f, cv2.IMREAD_COLOR)
+    image = cv2.imread(f, -1)
 
     return image
 
@@ -131,20 +131,24 @@ def save(path, file_name, data, n_jobs=12, dtype='.png'):
         os.makedirs(path, exist_ok=True)
     nfiles = np.shape(data)[2]
 
+    data_type = 'uint8'
+
     if data[0, 0, 0].dtype is bool:
         data = data * 255
+    elif data[0, 0, 0].dtype.type is np.uint16:
+        data_type = 'uint16'
 
     # Parallel saving (nonparallel if n_jobs = 1)
     if type(file_name) is list:
         Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
                                 (path + '/' + file_name[k][:-4] + dtype,
-                                 data[:, :, k].astype('uint8'))
+                                 data[:, :, k].astype(data_type))
                                 for k in tqdm(range(nfiles), 'Saving dataset'))
 
     else:
         Parallel(n_jobs=n_jobs)(delayed(cv2.imwrite)
                                 (path + '/' + file_name + '_' + str(k).zfill(8) + dtype,
-                                 data[:, :, k].astype('uint8'))
+                                 data[:, :, k].astype(data_type))
                                 for k in tqdm(range(nfiles), 'Saving dataset'))
 
 
