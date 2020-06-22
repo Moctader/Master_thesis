@@ -202,6 +202,7 @@ if __name__ == "__main__":
                          savepath=str(args.save_dir / 'visualizations' / (sample + '_prediction.png')),
                          scale_factor=1000)
 
+
         if str(args.subdir) != '.':  # Save in original location
             save(str(args.dataset_root / sample / subdir), files, mask_xz, dtype=args.dtype)
         else:  # Save in new location
