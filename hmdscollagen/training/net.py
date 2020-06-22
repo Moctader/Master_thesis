@@ -210,8 +210,8 @@ class ReconNet(nn.Module):
         self.relu10 = nn.ReLU(inplace=True)
 
         ######### transform module
-        self.trans_layer1 = _make_layers(4096, 4096, 'conv1_s1', False, 'relu')
-        self.trans_layer2 = _make_layers(2048, 2048, 'deconv1x1_s1', False, 'relu')
+        self.trans_layer1 = _make_layers(512, 512, 'conv1_s1', False, 'relu')
+        self.trans_layer2 = _make_layers(256, 256, 'deconv1x1_s1', False, 'relu')
 
         ######### generation network - deconvolution layers
         self.deconv_layer10 = _make_layers(2048, 1024, 'deconv4x4_s2', '3d', 'relu')
@@ -224,7 +224,7 @@ class ReconNet(nn.Module):
         self.deconv_layer2 = _make_layers(128, 64, 'deconv4x4_s2', '3d', 'relu')
         self.deconv_layer1 = _make_layers(64, 64, 'deconv3x3_s1', '3d', 'relu')
         self.deconv_layer0 = _make_layers(64, 1, 'conv1x1_s1', False, 'relu')
-        self.output_layer = _make_layers(64, out_planes, 'conv1_s1', False)
+        self.output_layer = _make_layers(512, out_planes, 'conv1_s1', False)
 
         if init_type == 'standard':
             _initialize_weights(self)
@@ -250,18 +250,18 @@ class ReconNet(nn.Module):
         relu10 = self.relu10(conv9 + conv10)
 
         ### transform module
-        features = self.trans_layer1(relu10)
+        features = self.trans_layer1(relu4)
 
-        trans_features = features.view(4,2048,-1,1,2)
+        trans_features = features.view(2,256,-1,4,8)
         trans_features = self.trans_layer2(trans_features)
 
         ### generation network
-        deconv10 = self.deconv_layer10(trans_features)
-        deconv8 = self.deconv_layer8(deconv10)
-        deconv7 = self.deconv_layer7(deconv8)
-        deconv6 = self.deconv_layer6(deconv7)
-        deconv5 = self.deconv_layer5(deconv6)
-        deconv4 = self.deconv_layer4(deconv5)
+      #  deconv10 = self.deconv_layer10(trans_features)
+       # deconv8 = self.deconv_layer8(deconv10)
+        #deconv7 = self.deconv_layer7(deconv8)
+        #deconv6 = self.deconv_layer6(deconv7)
+        #deconv5 = self.deconv_layer5(deconv6)
+        deconv4 = self.deconv_layer4(trans_features)
         deconv3 = self.deconv_layer3(deconv4)
         deconv2 = self.deconv_layer2(deconv3)
         deconv1 = self.deconv_layer1(deconv2)
@@ -270,7 +270,7 @@ class ReconNet(nn.Module):
         out = self.deconv_layer0(deconv1)
         out = torch.squeeze(out, 1)
         out = self.output_layer(out)
-        #out = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=True)
+        out = F.interpolate(out, scale_factor=8, mode='bilinear', align_corners=True)
         return out
 
 

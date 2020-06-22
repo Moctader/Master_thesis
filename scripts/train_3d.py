@@ -77,14 +77,14 @@ if __name__ == "__main__":
                             val_callbacks=val_cbs,
                             device=device)
         strategy.run()
-        save_config(snapshots_dir / snapshot_name, config, args, model)
+       # save_config(snapshots_dir / snapshot_name, config, args, model)
         #Manage memory
         del strategy
 
 
         #os.chdir('/data/Repositories/HMDS_collagen/workdir/snapshots/mipt-stud-dl-b_2020_02_18_11_06_55/')
         #FILE='model.pth'
-        #Save_model=torch.save(model.state_dict(), FILE)
+        Save_model=torch.save(model.state_dict(), FILE)
         #savepath = '/data/Repositories/HMDS_collagen/workdir/snapshots/'
         #save=os.path.join(str(savepath, Save_model)
         del model

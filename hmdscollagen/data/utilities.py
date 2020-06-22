@@ -136,6 +136,7 @@ def save(path, file_name, data, n_jobs=12, dtype='.png'):
     if data[0, 0, 0].dtype is bool:
         data = data * 255
     elif data[0, 0, 0].dtype.type is np.uint16:
+        #data = data * 65535
         data_type = 'uint16'
 
     # Parallel saving (nonparallel if n_jobs = 1)

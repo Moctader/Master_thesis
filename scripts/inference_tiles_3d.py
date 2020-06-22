@@ -25,6 +25,11 @@ from hmdscollagen.data.visualizations import render_volume
 
 from pytorch_toolbelt.inference.tiles import ImageSlicer, CudaTileMerger
 from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image, to_numpy
+from hmdscollagen.training.session import create_data_provider, init_experiment, init_callbacks, save_transforms,\
+    init_loss, parse_grayscale, init_model, save_config
+from hmdscollagen.data.splits import build_splits
+
+
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
@@ -131,10 +136,11 @@ if __name__ == "__main__":
     with open(args.snapshot / 'args.dill', 'rb') as f:
         args_experiment = dill.load(f)
 
-   # with open(args.snapshot / 'split_config.dill', 'rb') as f:
-    #    split_config = dill.load(f)
+    with open(args.snapshot / 'split_config.dill', 'rb') as f:
+        split_config = dill.load(f)
     args.save_dir.mkdir(exist_ok=True)
 
+    mean, std = split_config['mean'].numpy(), split_config['std'].numpy()
 
     # Load models
     models = glob(str(args.snapshot) + '/*.pth')
@@ -173,7 +179,13 @@ if __name__ == "__main__":
         print(f'==> Processing sample {idx + 1} of {len(samples)}: {sample}')
         # Load image stacks
         data_xz, files = load(str(args.dataset_root / sample), rgb=True)
+        #data_xz *= 2
+        data_xz = data_xz
+       # data_xz -= mean
+       # data_xz /= std
+        data_xz = np.array(data_xz)
         data_xz = np.expand_dims(data_xz, axis=3)
+
         mask_xz = np.zeros(data_xz.shape)
         # Loop for image slices
         # 1st orientation
@@ -181,17 +193,20 @@ if __name__ == "__main__":
             for slice_idx in tqdm(range(data_xz.shape[2]), desc='Running inference, XZ'):
                 mask_xz[:, :, slice_idx, 0] = inference(model, data_xz[:, :, slice_idx, :])
         # float64 to uint16
-        mask_xz = mask_xz * 65535
-        mask_xz = mask_xz.astype(np.uint16)
+        mask_xz = mask_xz *65535.
+        mask_xz = (mask_xz).astype(np.uint16)
+
         # Save predicted full mask
+
+        print_orthogonal((mask_xz.squeeze()), invert=False, res=3.2, title=None, cbar=True,
+                         savepath=str(args.save_dir / 'visualizations' / (sample + '_prediction.png')),
+                         scale_factor=1000)
+
         if str(args.subdir) != '.':  # Save in original location
             save(str(args.dataset_root / sample / subdir), files, mask_xz, dtype=args.dtype)
         else:  # Save in new location
             save(str(args.save_dir / sample), files, mask_xz, dtype=args.dtype)
 
-        print_orthogonal((mask_xz.squeeze()), invert=False, res=3.2, title=None, cbar=True,
-                         savepath=str(args.save_dir / 'visualizations' / (sample + '_prediction.png')),
-                         scale_factor=1000)
         #except Exception as e:
         #    print(f'Sample {sample} failed due to error:\n\n {e}\n\n.')
         #    continue

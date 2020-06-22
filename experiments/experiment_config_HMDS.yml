@@ -4,9 +4,9 @@ training:
   wd: 0.0001 # weight decay
   lr: 0.0001 # learning rate
   n_folds: 5 # number of cross-validation splits
-  crop_size: [256, 256] # image size
+  crop_size: [128, 256] # image size
   uCT: True # Use 3D parameters
-  calc_meanstd: True # Calculate mean and std of data
+  calc_meanstd: False # Calculate mean and std of data
   # Loss parameters: possible losses are "bce", "jaccard" and "combined"
   loss: mse
   log_jaccard: true

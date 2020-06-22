@@ -10,6 +10,10 @@ class SimpleConvNet(Module):
 
         self.conv1 = self.make_layer(n_channels, bw*32)
         self.conv2 = self.make_layer(bw*32, bw)
+      # self.conv3 = self.make_layer(bw*4, bw*8)
+      #  self.conv4 = self.make_layer(bw*8, bw*16)
+      #  self.conv5 = self.make_layer(bw*16, bw*32)
+      #  self.conv6 = self.make_layer(bw*32, bw)
         self.conv3 = self.make_layer(bw, self.n_filters_last)
 
         self.classifier = nn.Sequential(nn.Dropout(drop),
@@ -24,12 +28,20 @@ class SimpleConvNet(Module):
     def forward(self, x):
         x = F.max_pool2d(self.conv1(x), 2)  # 16x16
         x = F.max_pool2d(self.conv2(x), 2)  # 8x8
-        x = F.max_pool2d(self.conv3(x), 2)  # 4x4
+        x = F.max_pool2d(self.conv3(x), 2)  # 8x8
+       # x = F.max_pool2d(self.conv4(x), 2)  # 4x4
+       # x = F.max_pool2d(self.conv5(x), 2)  # 4x4
+       # x = F.max_pool2d(self.conv6(x), 2)  # 4x4
+       # x = F.max_pool2d(self.conv7(x), 2)  # 4x4
 
         #x = F.adaptive_avg_pool2d(x, 1)
         x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
         x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
         x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+       # x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+       # x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+       # x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+       # x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
 
         #x = x.view(x.size(0),-1,64,1)
 
